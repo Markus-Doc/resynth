@@ -11,67 +11,54 @@ from outside, via this CLI. The platform itself has zero runtime AI
 dependency. Every stage is runnable, inspectable and re-runnable from the
 shell with deterministic file backed state.
 
-## Start here, step by step
+## Install
 
-No technical knowledge needed. Follow these steps exactly.
+### Windows
 
-### One time setup (skip if already done on this machine)
-
-1. Install Python 3.11 or newer from python.org and Git from git-scm.com, accepting the defaults.
-2. Open PowerShell (press the Windows key, type powershell, press Enter).
-3. Copy and paste each line below, pressing Enter after each one:
+Open PowerShell (press the Windows key, type powershell, press Enter), paste
+this line and press Enter:
 
 ```
-cd $env:USERPROFILE\resynth
-python -m venv .venv
-.\.venv\Scripts\pip install -e ".[dev]"
-.\.venv\Scripts\resynth doctor
+irm https://raw.githubusercontent.com/Markus-Doc/resynth/main/install.ps1 | iex
 ```
 
-4. The last command prints a table. If it ends with "environment healthy" you are ready.
+The installer checks your machine, sets everything up, and offers to put a
+RESYNTH shortcut on your desktop. If Python or Git are missing it installs
+them and asks you to run the line once more in a new window.
 
-### Every time you want to research something
-
-1. Open PowerShell and type this, then press Enter:
-
-```
-cd $env:USERPROFILE\resynth
-```
-
-2. Open Claude Code in this folder by typing `claude` and pressing Enter.
-3. Tell Claude what you want, in plain language, for example:
+### macOS and Linux
 
 ```
-Read docs/OPERATOR-PROTOCOL.md. Start a new RESYNTH project called ev-batteries
-about "What are the most promising EV battery chemistries for 2030?" and write
-the research prompts for me.
+curl -fsSL https://raw.githubusercontent.com/Markus-Doc/resynth/main/install.sh | bash
 ```
 
-4. Claude sets up the project and writes one tailored prompt for each deep
-   research platform. Find them in `projects\ev-batteries\prompts\RESEARCH-PROMPTS.md`.
-5. Copy each prompt into its platform (Claude, ChatGPT, Gemini, Perplexity),
-   run the deep research, and save each finished report as a file, for
-   example into your Downloads folder. Markdown or plain text is best, PDF works too.
-6. Come back to Claude Code and say where the reports are, for example:
+## Use it
 
-```
-The four reports are in C:\Users\marku\Downloads. Ingest them into ev-batteries
-and run the full pipeline to a sealed master document.
-```
+Double click the RESYNTH desktop shortcut (or run `resynth` in a terminal).
+The guided mode walks you through everything, one step at a time:
 
-7. Claude runs the five gated stages and tells you when every gate reports
-   PASS. Your results are then in the project's `output` folder:
-   - `MASTER.md` is the single best document, for you to read.
-   - `MASTER.json` is the same content structured for handing to another AI agent.
-   - `AUDIT-REPORT.md` proves where every statement came from.
-8. To check progress yourself at any time, type:
+1. Name your project and describe what you want researched, in one sentence.
+2. RESYNTH creates a research prompts file and opens it. Fill in one prompt
+   per AI research platform, or paste the provided instruction into your AI
+   assistant and let it write them for you.
+3. Run each prompt on its platform (Claude, ChatGPT, Gemini, Perplexity) and
+   save every finished report as a file. Markdown or plain text is best.
+4. Back in RESYNTH, point it at the folder with your reports. It loads them
+   and fingerprints every one.
+5. RESYNTH then guides the consolidation: claims are extracted, compared
+   across reports, and written into one master document. At each step it
+   opens the right file, explains what to do, and gives you the exact
+   instruction to paste into an AI assistant if you want the AI to do the
+   work. Nothing advances until its quality gate passes.
+6. When every gate is green, RESYNTH seals the result. You get:
+   - `MASTER.md`, the single best document, for you to read.
+   - `MASTER.json`, the same content structured for an AI agent to action.
+   - `AUDIT-REPORT.md`, proof of where every statement came from.
 
-```
-.\.venv\Scripts\resynth status ev-batteries
-```
+Your projects live in the `RESYNTH` folder in your home directory. You can
+stop at any step and pick up where you left off, the guided mode remembers.
 
-That is the whole loop. Everything below this point is detail for operators
-and developers.
+Everything below this point is detail for operators and developers.
 
 ## The intended workflow
 

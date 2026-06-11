@@ -58,9 +58,25 @@ def common(fn):
     return fn
 
 
-@click.group()
-def main():
-    """RESYNTH, research consolidation with systematic review gates."""
+@click.group(invoke_without_command=True)
+@click.pass_context
+def main(ctx):
+    """RESYNTH, research consolidation with systematic review gates.
+
+    Run with no command for the guided step by step mode.
+    """
+    if ctx.invoked_subcommand is None:
+        from .wizard import run_wizard
+
+        sys.exit(run_wizard())
+
+
+@main.command()
+def guide():
+    """Guided step by step mode, the same as running resynth bare."""
+    from .wizard import run_wizard
+
+    sys.exit(run_wizard())
 
 
 @main.command()

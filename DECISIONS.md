@@ -19,3 +19,7 @@ Every architectural decision with a one line rationale.
 - The brief stage, the prompts workspace and the export command were added at user direction on 2026-06-11 to serve the multi platform deep research workflow, extending the original five stage directive.
 - Kali VM execution was dropped at user direction on 2026-06-11, RESYNTH is host native pure Python and runs anywhere Python 3.11 runs.
 - Templates live at the repository root and are located relative to the package, with a package local fallback.
+- Bare resynth launches a guided wizard that runs every mechanical step itself and pauses only where operator judgement is needed, so end users never learn the CLI.
+- Distribution is a one line installer plus a launcher and optional desktop shortcut rather than a PyInstaller executable, because an unsigned executable triggers SmartScreen warnings that hurt non technical users more than a script install does.
+- The installer keeps app code under the local app data directory and user projects in a RESYNTH folder in the home directory, so updates never touch user data.
+- The wizard initialises a git repository in the workspace with a local fallback identity at seal time, so sealing works on machines with no git configuration.
