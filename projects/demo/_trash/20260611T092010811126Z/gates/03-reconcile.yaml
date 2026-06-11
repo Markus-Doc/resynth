@@ -1,0 +1,19 @@
+gate: 03-reconcile
+status: FAIL
+reasons:
+- claim S01-C001 has no reconciliation decision
+- claim S01-C002 has no reconciliation decision
+- claim S01-C003 has no reconciliation decision
+- claim S01-C004 has no reconciliation decision
+- claim S02-C001 has no reconciliation decision
+- claim S02-C002 has no reconciliation decision
+- claim S02-C003 has no reconciliation decision
+- claim S02-C004 has no reconciliation decision
+- claim S03-C001 has no reconciliation decision
+- claim S03-C002 has no reconciliation decision
+- claim S03-C003 has no reconciliation decision
+warnings: []
+checks:
+  claims_total: 11
+  claims_decided: 0
+  decision_groups: 0

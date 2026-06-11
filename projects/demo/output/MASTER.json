@@ -1,0 +1,275 @@
+{
+  "claims": [
+    {
+      "claim_id": "S01-C001",
+      "claim_text": "Argon2id is the preferred algorithm for password hashing in new systems",
+      "claim_type": "recommendation",
+      "confidence_as_stated": "unstated",
+      "depends_on": [],
+      "source_id": "S01",
+      "supporting_quote_location": "Hashing algorithms",
+      "topic_tags": [
+        "hashing-algorithms"
+      ]
+    },
+    {
+      "claim_id": "S01-C002",
+      "claim_text": "A bcrypt work factor of at least 12 is required for new deployments",
+      "claim_type": "recommendation",
+      "confidence_as_stated": "high",
+      "depends_on": [],
+      "source_id": "S01",
+      "supporting_quote_location": "Hashing algorithms",
+      "topic_tags": [
+        "hashing-algorithms",
+        "work-factor"
+      ]
+    },
+    {
+      "claim_id": "S01-C003",
+      "claim_text": "Plaintext storage of passwords is prohibited with no exception process",
+      "claim_type": "fact",
+      "confidence_as_stated": "high",
+      "depends_on": [],
+      "source_id": "S01",
+      "supporting_quote_location": "Storage policy",
+      "topic_tags": [
+        "storage-policy"
+      ]
+    },
+    {
+      "claim_id": "S01-C004",
+      "claim_text": "Apply a secret pepper before hashing and store it in a hardware security module separate from the credential database",
+      "claim_type": "recommendation",
+      "confidence_as_stated": "unstated",
+      "depends_on": [],
+      "source_id": "S01",
+      "supporting_quote_location": "Key protection",
+      "topic_tags": [
+        "key-protection"
+      ]
+    },
+    {
+      "claim_id": "S02-C001",
+      "claim_text": "Argon2id is the preferred password hashing algorithm and runs without operational issues at recommended parameters",
+      "claim_type": "finding",
+      "confidence_as_stated": "medium",
+      "depends_on": [],
+      "source_id": "S02",
+      "supporting_quote_location": "What we run in production",
+      "topic_tags": [
+        "hashing-algorithms"
+      ]
+    },
+    {
+      "claim_id": "S02-C002",
+      "claim_text": "A bcrypt work factor of 10 is sufficient and higher values caused unacceptable login latency",
+      "claim_type": "finding",
+      "confidence_as_stated": "medium",
+      "depends_on": [],
+      "source_id": "S02",
+      "supporting_quote_location": "What we run in production",
+      "topic_tags": [
+        "hashing-algorithms",
+        "work-factor"
+      ]
+    },
+    {
+      "claim_id": "S02-C003",
+      "claim_text": "Plaintext password storage is forbidden in all environments including fixtures and test databases",
+      "claim_type": "fact",
+      "confidence_as_stated": "high",
+      "depends_on": [],
+      "source_id": "S02",
+      "supporting_quote_location": "Policy reminders",
+      "topic_tags": [
+        "storage-policy"
+      ]
+    },
+    {
+      "claim_id": "S02-C004",
+      "claim_text": "Upgrade legacy hashes by rehashing at the user's next successful login rather than by bulk migration",
+      "claim_type": "procedure",
+      "confidence_as_stated": "medium",
+      "depends_on": [],
+      "source_id": "S02",
+      "supporting_quote_location": "Migration practice",
+      "topic_tags": [
+        "migration"
+      ]
+    },
+    {
+      "claim_id": "S03-C001",
+      "claim_text": "Hashed rather than plaintext password storage limited the blast radius of the database exfiltration",
+      "claim_type": "finding",
+      "confidence_as_stated": "high",
+      "depends_on": [],
+      "source_id": "S03",
+      "supporting_quote_location": "Findings",
+      "topic_tags": [
+        "storage-policy"
+      ]
+    },
+    {
+      "claim_id": "S03-C002",
+      "claim_text": "Per account rate limiting reduced successful credential stuffing attempts by 90 percent",
+      "claim_type": "metric",
+      "confidence_as_stated": "high",
+      "depends_on": [],
+      "source_id": "S03",
+      "supporting_quote_location": "Findings",
+      "topic_tags": [
+        "abuse-prevention"
+      ]
+    },
+    {
+      "claim_id": "S03-C003",
+      "claim_text": "Add continuous monitoring of authentication failure rates to the on call dashboard",
+      "claim_type": "recommendation",
+      "confidence_as_stated": "unstated",
+      "depends_on": [],
+      "source_id": "S03",
+      "supporting_quote_location": "Recommendations",
+      "topic_tags": [
+        "monitoring"
+      ]
+    }
+  ],
+  "conflicts": [
+    "G002"
+  ],
+  "decisions": [
+    {
+      "claim_ids": [
+        "S01-C001",
+        "S02-C001"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "CORROBORATED",
+      "group_id": "G001",
+      "note": "",
+      "rule_applied": "multi_source_agreement",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S01-C002",
+        "S02-C002"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "CONFLICT",
+      "group_id": "G002",
+      "note": "bcrypt work factor disagreement",
+      "rule_applied": "conflicts_are_logged_not_resolved",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S01-C003",
+        "S02-C003",
+        "S03-C001"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "CORROBORATED",
+      "group_id": "G003",
+      "note": "",
+      "rule_applied": "multi_source_agreement",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S01-C004"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "UNIQUE",
+      "group_id": "G004",
+      "note": "",
+      "rule_applied": "single_source",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S02-C004"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "UNIQUE",
+      "group_id": "G005",
+      "note": "",
+      "rule_applied": "single_source",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S03-C002"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "UNIQUE",
+      "group_id": "G006",
+      "note": "",
+      "rule_applied": "single_source",
+      "winner": null
+    },
+    {
+      "claim_ids": [
+        "S03-C003"
+      ],
+      "decided_by": "demo-operator",
+      "decision": "UNIQUE",
+      "group_id": "G007",
+      "note": "",
+      "rule_applied": "single_source",
+      "winner": null
+    }
+  ],
+  "format": "resynth-master/1",
+  "project": "demo",
+  "sections": [
+    {
+      "heading": "Abuse Prevention",
+      "text": "Per account rate limiting is an effective control, the incident retrospective measured a 90 percent drop in successful credential stuffing attempts after it was deployed [S03-C002]."
+    },
+    {
+      "heading": "Hashing Algorithms",
+      "text": "Argon2id is the preferred password hashing algorithm for new systems, corroborated by both the standards review and production experience [S01-C001, S02-C001]."
+    },
+    {
+      "heading": "Key Protection",
+      "text": "The standards review recommends a secret pepper applied before hashing and held in a hardware security module separate from the credential database [S01-C004]."
+    },
+    {
+      "heading": "Migration",
+      "text": "Legacy hashes should be upgraded by rehashing at each user's next successful login rather than by bulk migration [S02-C004]."
+    },
+    {
+      "heading": "Monitoring",
+      "text": "Authentication failure rates should be continuously monitored on the on call dashboard so credential stuffing campaigns are detected within minutes [S03-C003]."
+    },
+    {
+      "heading": "Storage Policy",
+      "text": "Plaintext password storage is prohibited in every environment, a position corroborated by the standards review, engineering practice and incident evidence [S01-C003, S02-C003, S03-C001]."
+    },
+    {
+      "heading": "Conflicts",
+      "text": "The standards review requires a bcrypt work factor of at least 12 while the engineering field notes report a work factor of 10 as sufficient on older hardware [S01-C002, S02-C002]. The disagreement is recorded here and remains unresolved in line with the merge rules."
+    },
+    {
+      "heading": "Gaps",
+      "text": "No gaps were identified beyond the unresolved bcrypt work factor disagreement recorded in the Conflicts section."
+    },
+    {
+      "heading": "Appendix: Source Register",
+      "text": "| Source | Title | Authority | Authored | Content hash |\n| --- | --- | --- | --- | --- |\n| S01 | Password Storage Guidance, Standards Review | unknown | unknown | 46bc385bee78 |\n| S02 | Engineering Field Notes on Credential Storage | unknown | unknown | 82890e27fa39 |\n| S03 | Incident Retrospective, Credential Stuffing Campaign | unknown | unknown | 1c7d5ec1cb12 |"
+    }
+  ],
+  "winning_claims": {
+    "S01-C001": "G001",
+    "S01-C003": "G003",
+    "S01-C004": "G004",
+    "S02-C001": "G001",
+    "S02-C003": "G003",
+    "S02-C004": "G005",
+    "S03-C001": "G003",
+    "S03-C002": "G006",
+    "S03-C003": "G007"
+  }
+}

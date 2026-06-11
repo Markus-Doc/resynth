@@ -1,0 +1,14 @@
+gate: 05-audit
+status: PASS
+reasons: []
+warnings: []
+checks:
+  coverage:
+    S01: 4/4
+    S02: 4/4
+    S03: 3/3
+  drift:
+    S01: ok
+    S02: ok
+    S03: ok
+  dropped_claims: []

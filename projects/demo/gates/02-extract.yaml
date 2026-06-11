@@ -1,0 +1,10 @@
+gate: 02-extract
+status: PASS
+reasons: []
+warnings: []
+checks:
+  claims_per_source:
+    S01: 4
+    S02: 4
+    S03: 3
+  total_claims: 11

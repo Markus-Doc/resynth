@@ -1,0 +1,10 @@
+gate: 01-intake
+status: PASS
+reasons: []
+warnings: []
+checks:
+  sources:
+    S01: ok
+    S02: ok
+    S03: ok
+  source_count: 3

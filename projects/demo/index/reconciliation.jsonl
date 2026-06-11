@@ -1,0 +1,8 @@
+# reconciliation decisions, written by the demo operator
+{"group_id": "G001", "claim_ids": ["S01-C001", "S02-C001"], "decision": "CORROBORATED", "rule_applied": "multi_source_agreement", "decided_by": "demo-operator", "winner": null, "note": ""}
+{"group_id": "G002", "claim_ids": ["S01-C002", "S02-C002"], "decision": "CONFLICT", "rule_applied": "conflicts_are_logged_not_resolved", "decided_by": "demo-operator", "winner": null, "note": "bcrypt work factor disagreement"}
+{"group_id": "G003", "claim_ids": ["S01-C003", "S02-C003", "S03-C001"], "decision": "CORROBORATED", "rule_applied": "multi_source_agreement", "decided_by": "demo-operator", "winner": null, "note": ""}
+{"group_id": "G004", "claim_ids": ["S01-C004"], "decision": "UNIQUE", "rule_applied": "single_source", "decided_by": "demo-operator", "winner": null, "note": ""}
+{"group_id": "G005", "claim_ids": ["S02-C004"], "decision": "UNIQUE", "rule_applied": "single_source", "decided_by": "demo-operator", "winner": null, "note": ""}
+{"group_id": "G006", "claim_ids": ["S03-C002"], "decision": "UNIQUE", "rule_applied": "single_source", "decided_by": "demo-operator", "winner": null, "note": ""}
+{"group_id": "G007", "claim_ids": ["S03-C003"], "decision": "UNIQUE", "rule_applied": "single_source", "decided_by": "demo-operator", "winner": null, "note": ""}

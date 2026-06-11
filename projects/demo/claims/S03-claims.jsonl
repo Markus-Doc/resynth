@@ -1,0 +1,4 @@
+# claims for S03, written by the demo operator
+{"source_id": "S03", "depends_on": [], "claim_id": "S03-C001", "claim_text": "Hashed rather than plaintext password storage limited the blast radius of the database exfiltration", "claim_type": "finding", "topic_tags": ["storage-policy"], "supporting_quote_location": "Findings", "confidence_as_stated": "high"}
+{"source_id": "S03", "depends_on": [], "claim_id": "S03-C002", "claim_text": "Per account rate limiting reduced successful credential stuffing attempts by 90 percent", "claim_type": "metric", "topic_tags": ["abuse-prevention"], "supporting_quote_location": "Findings", "confidence_as_stated": "high"}
+{"source_id": "S03", "depends_on": [], "claim_id": "S03-C003", "claim_text": "Add continuous monitoring of authentication failure rates to the on call dashboard", "claim_type": "recommendation", "topic_tags": ["monitoring"], "supporting_quote_location": "Recommendations", "confidence_as_stated": "unstated"}

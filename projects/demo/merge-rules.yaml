@@ -1,0 +1,11 @@
+# RESYNTH merge rules. Edit per project as required.
+# rules are applied by the operator during reconciliation and recorded
+# in each decision under rule_applied.
+rules:
+  - newer_beats_older
+  - primary_beats_secondary
+  - explicit_beats_implied
+  - conflicts_are_logged_not_resolved
+# section_order controls body section ordering in MASTER.md.
+# List topic tags in the desired order. Empty means alphabetical.
+section_order: []

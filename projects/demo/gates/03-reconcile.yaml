@@ -1,0 +1,8 @@
+gate: 03-reconcile
+status: PASS
+reasons: []
+warnings: []
+checks:
+  claims_total: 11
+  claims_decided: 11
+  decision_groups: 7

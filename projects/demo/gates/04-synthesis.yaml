@@ -1,0 +1,8 @@
+gate: 04-synthesis
+status: PASS
+reasons: []
+warnings: []
+checks:
+  claims_cited: 11
+  winning_claims: 9
+  conflict_groups: 1
