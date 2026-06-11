@@ -1,5 +1,9 @@
 # RESYNTH
 
+[![CI](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml/badge.svg)](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+
 A CLI research consolidation platform. RESYNTH ingests multiple research
 documents on a shared topic and produces a single master source of truth
 document using systematic review methodology, with full provenance, explicit
@@ -215,6 +219,12 @@ runs/                run logs, gitignored
 - No destructive operations, replaced files move to a timestamped _trash directory.
 - Idempotent stages, re-running with unchanged inputs changes nothing.
 - A sealed master is hash verified end to end, from source bytes to the final tag.
+
+## Contributing and security
+
+Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Report
+vulnerabilities privately via [SECURITY.md](SECURITY.md). Release history
+lives in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 

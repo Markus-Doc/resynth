@@ -1,5 +1,8 @@
 runs/
 operator.yaml
+projects/*
+!projects/demo/
+scripts/_*
 __pycache__/
 *.pyc
 *.egg-info/
