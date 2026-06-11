@@ -1,0 +1,42 @@
+# Master Document: {{ project }}
+
+> [!abstract] Methodology
+> This master document was produced with the RESYNTH five stage pipeline.
+> Sources consolidated: {% for s in sources %}{{ s.source_id }} ({{ s.title }}, {{ s.authority_tier }}, authored {{ s.date_authored }}){% if not loop.last %}, {% endif %}{% endfor %}.
+> Merge rules applied: {{ rules | join(', ') }}.
+> Every paragraph carries provenance markers naming the claims it rests on.
+> The full decision record lives in index/reconciliation.jsonl.
+
+{% for section in sections %}
+## {{ section.title }}
+
+> [!todo] Operator prose required for this section
+> Claims to cover: [{{ section.claim_ids | join(', ') }}]
+> Write paragraphs below this callout, then delete it. Every paragraph
+> must end with its provenance markers, for example [{{ section.claim_ids[0] }}].
+
+{% endfor %}
+## Conflicts
+
+{% if conflicts %}
+{% for c in conflicts %}
+> [!todo] Conflict {{ c.group_id }} requires an operator description
+> Claims in disagreement: [{{ c.claim_ids | join(', ') }}]
+> Describe the disagreement and cite both sides. Do not resolve it.
+
+{% endfor %}
+{% else %}
+No conflicts were recorded during reconciliation.
+
+{% endif %}
+## Gaps
+
+> [!todo] Operator must list known gaps or state that none were identified.
+
+## Appendix: Source Register
+
+| Source | Title | Authority | Authored | Content hash |
+| --- | --- | --- | --- | --- |
+{% for s in sources %}
+| {{ s.source_id }} | {{ s.title }} | {{ s.authority_tier }} | {{ s.date_authored }} | {{ s.sha256_short }} |
+{% endfor %}
