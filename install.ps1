@@ -65,7 +65,25 @@ cd /d "$WorkDir"
 if "%1"=="" pause
 "@ | Set-Content -Path $launcher -Encoding ASCII
 
-# 7. Desktop shortcut, with permission
+# 7. AI assistant wiring
+$aiClis = @("claude", "codex", "gemini") | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue }
+if ($aiClis) {
+    Write-Host "AI assistant found: $($aiClis -join ', '). RESYNTH will offer to wire it in on first run." -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "RESYNTH works best with an AI assistant CLI doing the thinking steps." -ForegroundColor Yellow
+    $aiAnswer = Read-Host "None found. Install Claude Code now? (requires Node.js) (y/N)"
+    if ($aiAnswer -match "^[Yy]") {
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+            npm install -g @anthropic-ai/claude-code
+            Write-Host "Claude Code installed. Run 'claude' once to sign in before using RESYNTH." -ForegroundColor Green
+        } else {
+            Write-Host "Node.js is needed first. Install it from nodejs.org, then run: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
+        }
+    }
+}
+
+# 8. Desktop shortcut, with permission
 $answer = Read-Host "Create a desktop shortcut so you can double click to launch? (Y/n)"
 if ($answer -eq "" -or $answer -match "^[Yy]") {
     $shell = New-Object -ComObject WScript.Shell
@@ -77,7 +95,7 @@ if ($answer -eq "" -or $answer -match "^[Yy]") {
     Write-Host "Desktop shortcut created." -ForegroundColor Green
 }
 
-# 8. Start Menu entry
+# 9. Start Menu entry
 $startMenu = Join-Path ([Environment]::GetFolderPath("Programs")) "RESYNTH.lnk"
 $shell2 = New-Object -ComObject WScript.Shell
 $sm = $shell2.CreateShortcut($startMenu)

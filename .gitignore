@@ -1,4 +1,5 @@
 runs/
+operator.yaml
 __pycache__/
 *.pyc
 *.egg-info/

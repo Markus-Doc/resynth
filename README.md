@@ -37,19 +37,24 @@ curl -fsSL https://raw.githubusercontent.com/Markus-Doc/resynth/main/install.sh 
 Double click the RESYNTH desktop shortcut (or run `resynth` in a terminal).
 The guided mode walks you through everything, one step at a time:
 
-1. Name your project and describe what you want researched, in one sentence.
-2. RESYNTH creates a research prompts file and opens it. Fill in one prompt
-   per AI research platform, or paste the provided instruction into your AI
-   assistant and let it write them for you.
-3. Run each prompt on its platform (Claude, ChatGPT, Gemini, Perplexity) and
-   save every finished report as a file. Markdown or plain text is best.
-4. Back in RESYNTH, point it at the folder with your reports. It loads them
-   and fingerprints every one.
-5. RESYNTH then guides the consolidation: claims are extracted, compared
-   across reports, and written into one master document. At each step it
+1. On first run RESYNTH detects AI assistant CLIs on your machine (Claude
+   Code, Codex, Gemini) and offers to wire one in. With an assistant wired
+   in, every thinking step can be done for you automatically. Adjust the
+   wiring any time: `resynth operator --use claude --model claude-opus-4-8 --effort high`
+2. Name your project and describe what you want researched, in one sentence.
+3. Already have your research reports? Say yes when asked and RESYNTH skips
+   straight to loading them. Otherwise it creates one tailored research
+   prompt per platform (your wired assistant can write them), you run them
+   on the platforms and save every report as a file.
+4. Point RESYNTH at the folder with your reports. It loads and fingerprints
+   every one.
+5. RESYNTH then drives the consolidation: claims are extracted, compared
+   across reports, and written into one master document. With an assistant
+   wired in each step runs automatically and is re-checked against the
+   quality gate, with up to three corrective passes. Without one, RESYNTH
    opens the right file, explains what to do, and gives you the exact
-   instruction to paste into an AI assistant if you want the AI to do the
-   work. Nothing advances until its quality gate passes.
+   instruction to paste into any AI assistant. Nothing advances until its
+   gate passes.
 6. When every gate is green, RESYNTH seals the result. You get:
    - `MASTER.md`, the single best document, for you to read.
    - `MASTER.json`, the same content structured for an AI agent to action.
@@ -135,6 +140,7 @@ resynth audit <project>           stage 5 coverage, drift, traceability
 resynth seal <project>            hash everything, commit SEAL.yaml, tag the repo
 resynth export <project>          machine readable output/MASTER.json for agents
 resynth status <project>          gate dashboard
+resynth operator                  show or set the wired AI assistant, model and effort
 resynth doctor                    environment probe
 ```
 

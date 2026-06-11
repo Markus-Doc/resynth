@@ -17,7 +17,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from . import config
+from . import config, operator_ai
 from .audit import run_audit, run_seal
 from .errors import ResynthError
 from .export import run_export
@@ -29,6 +29,54 @@ from .reconcile import run_reconcile
 from .synthesise import run_synth_verify, run_synthesise
 
 console = Console()
+
+DELEGATED_PROMPTS = {
+    "prompts": (
+        "You are the RESYNTH operator working in this RESYNTH workspace.\n"
+        "Open projects/{project}/BRIEF.md to read the research question, then\n"
+        "edit projects/{project}/prompts/RESEARCH-PROMPTS.md and replace every\n"
+        "todo callout with one tailored deep research prompt for that platform.\n"
+        "Ask each platform for clear headings, explicit confidence statements\n"
+        "per finding and named sources. Edit no other files."
+    ),
+    "extract": (
+        "You are the RESYNTH operator working in this RESYNTH workspace.\n"
+        "Read projects/{project}/claims/EXTRACTION-INSTRUCTIONS.md and follow it\n"
+        "exactly. For each source file under projects/{project}/sources/, read\n"
+        "only that source and append its claims to the matching\n"
+        "projects/{project}/claims/S<NN>-claims.jsonl file, one JSON object per\n"
+        "line in the documented schema. Restate each claim in your own words,\n"
+        "one claim per line, split compound statements, reuse topic tags across\n"
+        "sources. Record the confidence the source states, not your own.\n"
+        "Edit only the claims jsonl files."
+    ),
+    "reconcile": (
+        "You are the RESYNTH operator working in this RESYNTH workspace.\n"
+        "Read projects/{project}/index/RECONCILIATION-INSTRUCTIONS.md, the\n"
+        "claims index at projects/{project}/index/claims-index.md and the\n"
+        "flagged pairs in projects/{project}/index/candidates.jsonl. Write\n"
+        "decision groups to projects/{project}/index/reconciliation.jsonl, one\n"
+        "JSON object per line, so that every extracted claim lands in exactly\n"
+        "one group. CORROBORATED when sources agree, UNIQUE for single source\n"
+        "claims, SUPERSEDED only with a rule from merge-rules.yaml and a named\n"
+        "winner, CONFLICT for genuine disagreement which you must never\n"
+        "resolve, OUT_OF_SCOPE only with a one line note. Set decided_by to\n"
+        "your CLI name. Edit only reconciliation.jsonl."
+    ),
+    "synthesise": (
+        "You are the RESYNTH operator working in this RESYNTH workspace.\n"
+        "Edit projects/{project}/output/MASTER.md and replace every todo\n"
+        "callout with final prose. Work only from\n"
+        "projects/{project}/index/claims-index.md and\n"
+        "projects/{project}/index/reconciliation.jsonl, never from the raw\n"
+        "sources. Every paragraph must end with provenance markers listing the\n"
+        "claim ids it rests on, for example [S01-C003, S02-C011]. Cite every\n"
+        "claim from every CORROBORATED and UNIQUE group and every SUPERSEDED\n"
+        "winner at least once. Describe each CONFLICT in the Conflicts section\n"
+        "citing both sides without resolving it. Fill the Gaps section.\n"
+        "Edit only MASTER.md."
+    ),
+}
 
 AGENT_PROMPTS = {
     "prompts": (
@@ -147,6 +195,47 @@ def _ensure_git(root: Path) -> None:
     git("commit", "-m", "RESYNTH workspace state", ok_fail=True)
 
 
+def _setup_operator(root: Path) -> dict:
+    """Load or first-time configure the AI operator wiring."""
+    cfg = operator_ai.load()
+    if cfg.get("cli"):
+        return cfg
+    if operator_ai.config_path().is_file():
+        return cfg
+    found = operator_ai.detect()
+    if found:
+        labels = ", ".join(operator_ai.KNOWN_CLIS[f]["label"] for f in found)
+        console.print(f"\nI found these AI assistants on your machine: [cyan]{labels}[/cyan]")
+        if Confirm.ask(
+            f"Use [cyan]{found[0]}[/cyan] to do the AI work automatically?", default=True
+        ):
+            cfg["cli"] = found[0]
+        elif len(found) > 1:
+            choice = Prompt.ask("Which one?", choices=found + ["none"], default="none")
+            if choice != "none":
+                cfg["cli"] = choice
+        operator_ai.save(cfg)
+        if cfg.get("cli"):
+            console.print(
+                f"Wired in [cyan]{cfg['cli']}[/cyan] with model "
+                f"[cyan]{operator_ai.resolved_model(cfg) or 'default'}[/cyan] and "
+                f"[cyan]{cfg['effort']}[/cyan] reasoning effort. "
+                "Adjust any time with: resynth operator --use ... --model ... --effort ..."
+            )
+    else:
+        hints = "\n".join(
+            f"  {v['label']}: {v['install_hint']}" for v in operator_ai.KNOWN_CLIS.values()
+        )
+        _panel(
+            "No AI assistant CLI found",
+            "RESYNTH can hand the thinking steps to an AI assistant installed\n"
+            "on your machine. None was found, so I will guide you manually.\n\n"
+            f"To wire one in later, install one of these and re-run RESYNTH:\n{hints}",
+        )
+        operator_ai.save(cfg)
+    return cfg
+
+
 def _choose_project(root: Path) -> str | None:
     projects = sorted(p.name for p in (root / "projects").iterdir() if p.is_dir())
     if projects:
@@ -171,22 +260,59 @@ def _choose_project(root: Path) -> str | None:
     return safe
 
 
-def _step_brief(project: str, pdir: Path) -> bool:
+def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str]) -> bool:
+    """Run one operator task through the configured AI CLI. True on rc 0."""
+    prompt = DELEGATED_PROMPTS[key].format(project=project)
+    if feedback:
+        prompt += (
+            "\n\nA previous attempt failed verification with these reasons, fix them:\n"
+            + "\n".join(f"- {r}" for r in feedback[:15])
+        )
+    console.print(
+        f"\n[cyan]Handing this step to {ai_cfg['cli']} "
+        f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
+        f"effort {ai_cfg.get('effort', 'high')})...[/cyan]\n"
+    )
+    rc = operator_ai.run_task(ai_cfg, prompt, root)
+    if rc != 0:
+        console.print(f"[red]{ai_cfg['cli']} exited with code {rc}.[/red]")
+    return rc == 0
+
+
+def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
     topic = Prompt.ask("\nWhat do you want researched? Describe it in one sentence")
     if not topic.strip():
         return True
     run_brief(project, topic)
+    if Confirm.ask(
+        "Do you already have your research reports saved as files?", default=False
+    ):
+        console.print("Good, we will load them next.")
+        return True
     prompts_file = pdir / "prompts" / "RESEARCH-PROMPTS.md"
-    _panel(
-        "Step 1 of 6: research prompts",
-        "I created a prompts file and will open it now.\n\n"
-        "Fill in one prompt per platform, or paste this into your AI assistant\n"
-        "and let it write them for you:\n\n"
-        f"[dim]{AGENT_PROMPTS['prompts'].replace('<project>', project)}[/dim]\n\n"
-        "Then run each prompt on its platform (Claude, ChatGPT, Gemini,\n"
-        "Perplexity) and save every finished report as a file.\n"
-        "Markdown (.md) or plain text (.txt) files work best.",
-    )
+    if ai_cfg.get("cli") and Confirm.ask(
+        f"Let {ai_cfg['cli']} write the platform research prompts for you now?",
+        default=True,
+    ):
+        _delegate(project, root, ai_cfg, "prompts", [])
+        _panel(
+            "Step 1 of 6: research prompts",
+            "Your prompts are ready, I will open them now.\n\n"
+            "Run each prompt on its platform (Claude, ChatGPT, Gemini,\n"
+            "Perplexity) and save every finished report as a file.\n"
+            "Markdown (.md) or plain text (.txt) files work best.",
+        )
+    else:
+        _panel(
+            "Step 1 of 6: research prompts",
+            "I created a prompts file and will open it now.\n\n"
+            "Fill in one prompt per platform, or paste this into your AI assistant\n"
+            "and let it write them for you:\n\n"
+            f"[dim]{AGENT_PROMPTS['prompts'].replace('<project>', project)}[/dim]\n\n"
+            "Then run each prompt on its platform (Claude, ChatGPT, Gemini,\n"
+            "Perplexity) and save every finished report as a file.\n"
+            "Markdown (.md) or plain text (.txt) files work best.",
+        )
     _open_file(prompts_file)
     return _pause()
 
@@ -225,12 +351,37 @@ def _step_intake(project: str) -> bool:
     return True
 
 
-def _step_operator(project: str, pdir: Path, key: str, title: str, body: str, open_path: Path, verify) -> bool:
-    _panel(
-        title,
-        body
-        + "\n\nIf an AI agent is your operator, paste this to it:\n\n"
-        + f"[dim]{AGENT_PROMPTS[key].replace('<project>', project)}[/dim]",
+def _step_operator(
+    project: str,
+    pdir: Path,
+    root: Path,
+    ai_cfg: dict,
+    key: str,
+    title: str,
+    body: str,
+    open_path: Path,
+    verify,
+) -> bool:
+    _panel(title, body)
+    if ai_cfg.get("cli") and Confirm.ask(
+        f"Let {ai_cfg['cli']} do this step for you now?", default=True
+    ):
+        feedback: list[str] = []
+        for attempt in range(1, 4):
+            if not _delegate(project, root, ai_cfg, key, feedback):
+                break
+            result = verify()
+            if result["ok"]:
+                console.print("[green]Gate PASS, moving on.[/green]")
+                return True
+            feedback = result.get("gate", {}).get("reasons", [])
+            _show_reasons(result)
+            if attempt < 3:
+                console.print(f"[yellow]Retrying with feedback, attempt {attempt + 1} of 3...[/yellow]")
+        console.print("[yellow]Falling back to manual mode for this step.[/yellow]")
+    console.print(
+        "\nIf an AI agent is your operator, paste this to it:\n"
+        f"[dim]{AGENT_PROMPTS[key].replace('<project>', project)}[/dim]"
     )
     _open_file(open_path)
     if not _pause():
@@ -243,12 +394,12 @@ def _step_operator(project: str, pdir: Path, key: str, title: str, body: str, op
     return True
 
 
-def _run_project(project: str, root: Path) -> None:
+def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
     pdir = config.project_dir(project)
     while True:
         state = project_state(pdir)
         if state == "brief":
-            if not _step_brief(project, pdir):
+            if not _step_brief(project, pdir, root, ai_cfg):
                 return
         elif state == "intake":
             if not _step_intake(project):
@@ -258,6 +409,8 @@ def _run_project(project: str, root: Path) -> None:
             if not _step_operator(
                 project,
                 pdir,
+                root,
+                ai_cfg,
                 "extract",
                 "Step 3 of 6: pull out the claims",
                 "Every report now has a claims worksheet under claims/.\n"
@@ -272,6 +425,8 @@ def _run_project(project: str, root: Path) -> None:
             if not _step_operator(
                 project,
                 pdir,
+                root,
+                ai_cfg,
                 "reconcile",
                 "Step 4 of 6: compare the claims",
                 "Now every claim gets classified: corroborated, unique,\n"
@@ -286,6 +441,8 @@ def _run_project(project: str, root: Path) -> None:
             if not _step_operator(
                 project,
                 pdir,
+                root,
+                ai_cfg,
                 "synthesise",
                 "Step 5 of 6: write the master document",
                 "The master document scaffold is ready. Replace every todo\n"
@@ -338,12 +495,13 @@ def run_wizard() -> int:
         )
     )
     root = _ensure_workspace()
+    ai_cfg = _setup_operator(root)
     try:
         project = _choose_project(root)
         if not project:
             return 0
         _status_table(project, config.project_dir(project))
-        _run_project(project, root)
+        _run_project(project, root, ai_cfg)
     except (KeyboardInterrupt, EOFError):
         console.print("\nbye")
     except ResynthError as exc:

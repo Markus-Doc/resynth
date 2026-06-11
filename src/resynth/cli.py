@@ -193,6 +193,50 @@ def status(project, as_json, dry_run):
 
 
 @main.command()
+@click.option("--use", "use_cli", default=None, help="AI CLI to wire in (claude, codex, gemini, or a path).")
+@click.option("--model", default=None, help="Model override, for example claude-opus-4-8.")
+@click.option("--effort", default=None, type=click.Choice(["low", "medium", "high"]), help="Reasoning effort.")
+@click.option("--clear", is_flag=True, help="Remove the AI operator wiring.")
+@common
+def operator(use_cli, model, effort, clear, as_json, dry_run):
+    """Show or set which AI assistant does the operator work."""
+    from . import operator_ai
+
+    def _operator():
+        cfg = operator_ai.load()
+        changed = False
+        if clear:
+            cfg = dict(operator_ai.DEFAULTS)
+            changed = True
+        if use_cli:
+            cfg["cli"] = use_cli
+            changed = True
+        if model:
+            cfg["model"] = model
+            changed = True
+        if effort:
+            cfg["effort"] = effort
+            changed = True
+        if changed and not dry_run:
+            operator_ai.save(cfg)
+        detected = operator_ai.detect()
+        messages = [
+            f"wired CLI: {cfg['cli'] or 'none'}",
+            f"model: {operator_ai.resolved_model(cfg) or 'CLI default'}",
+            f"reasoning effort: {cfg['effort']}",
+            f"detected on this machine: {', '.join(detected) or 'none'}",
+        ]
+        return {
+            "ok": True,
+            "config": {**cfg, "resolved_model": operator_ai.resolved_model(cfg)},
+            "detected": detected,
+            "messages": messages,
+        }
+
+    _run("operator", None, as_json, dry_run, _operator)
+
+
+@main.command()
 @common
 def doctor(as_json, dry_run):
     """Probe the environment: python, git, pandoc, pdftotext."""

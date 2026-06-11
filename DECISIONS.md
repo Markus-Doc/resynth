@@ -23,3 +23,7 @@ Every architectural decision with a one line rationale.
 - Distribution is a one line installer plus a launcher and optional desktop shortcut rather than a PyInstaller executable, because an unsigned executable triggers SmartScreen warnings that hurt non technical users more than a script install does.
 - The installer keeps app code under the local app data directory and user projects in a RESYNTH folder in the home directory, so updates never touch user data.
 - The wizard initialises a git repository in the workspace with a local fallback identity at seal time, so sealing works on machines with no git configuration.
+- AI inference is wired in as a pluggable external operator CLI (operator.yaml at the workspace root), the pipeline itself stays AI free and the zero runtime AI guarantee now means zero embedded AI, not zero AI assistance.
+- The wired assistant defaults to Claude Code with claude-opus-4-8 at high reasoning effort, adjustable with resynth operator.
+- Delegated operator steps verify against the stage gate and retry up to three times with the gate reasons fed back, then fall back to manual mode.
+- The brief step asks whether reports already exist and skips prompt generation when they do, consolidation only is a first class flow.
