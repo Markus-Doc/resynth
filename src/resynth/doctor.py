@@ -8,14 +8,12 @@ import subprocess
 import sys
 
 
-def _probe(cmd: str) -> str | None:
+def _probe(cmd: str, flag: str = "--version") -> str | None:
     path = shutil.which(cmd)
     if not path:
         return None
     try:
-        out = subprocess.run(
-            [cmd, "--version"], capture_output=True, text=True, timeout=15
-        )
+        out = subprocess.run([cmd, flag], capture_output=True, text=True, timeout=15)
         first = (out.stdout or out.stderr).strip().splitlines()
         return first[0] if first else "present"
     except Exception:
@@ -37,8 +35,8 @@ def run_doctor() -> dict:
             "required": False,
         },
         "pdftotext": {
-            "value": _probe("pdftotext"),
-            "ok": _probe("pdftotext") is not None,
+            "value": _probe("pdftotext", "-v"),
+            "ok": _probe("pdftotext", "-v") is not None,
             "required": False,
         },
     }
