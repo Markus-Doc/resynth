@@ -11,6 +11,68 @@ from outside, via this CLI. The platform itself has zero runtime AI
 dependency. Every stage is runnable, inspectable and re-runnable from the
 shell with deterministic file backed state.
 
+## Start here, step by step
+
+No technical knowledge needed. Follow these steps exactly.
+
+### One time setup (skip if already done on this machine)
+
+1. Install Python 3.11 or newer from python.org and Git from git-scm.com, accepting the defaults.
+2. Open PowerShell (press the Windows key, type powershell, press Enter).
+3. Copy and paste each line below, pressing Enter after each one:
+
+```
+cd $env:USERPROFILE\resynth
+python -m venv .venv
+.\.venv\Scripts\pip install -e ".[dev]"
+.\.venv\Scripts\resynth doctor
+```
+
+4. The last command prints a table. If it ends with "environment healthy" you are ready.
+
+### Every time you want to research something
+
+1. Open PowerShell and type this, then press Enter:
+
+```
+cd $env:USERPROFILE\resynth
+```
+
+2. Open Claude Code in this folder by typing `claude` and pressing Enter.
+3. Tell Claude what you want, in plain language, for example:
+
+```
+Read docs/OPERATOR-PROTOCOL.md. Start a new RESYNTH project called ev-batteries
+about "What are the most promising EV battery chemistries for 2030?" and write
+the research prompts for me.
+```
+
+4. Claude sets up the project and writes one tailored prompt for each deep
+   research platform. Find them in `projects\ev-batteries\prompts\RESEARCH-PROMPTS.md`.
+5. Copy each prompt into its platform (Claude, ChatGPT, Gemini, Perplexity),
+   run the deep research, and save each finished report as a file, for
+   example into your Downloads folder. Markdown or plain text is best, PDF works too.
+6. Come back to Claude Code and say where the reports are, for example:
+
+```
+The four reports are in C:\Users\marku\Downloads. Ingest them into ev-batteries
+and run the full pipeline to a sealed master document.
+```
+
+7. Claude runs the five gated stages and tells you when every gate reports
+   PASS. Your results are then in the project's `output` folder:
+   - `MASTER.md` is the single best document, for you to read.
+   - `MASTER.json` is the same content structured for handing to another AI agent.
+   - `AUDIT-REPORT.md` proves where every statement came from.
+8. To check progress yourself at any time, type:
+
+```
+.\.venv\Scripts\resynth status ev-batteries
+```
+
+That is the whole loop. Everything below this point is detail for operators
+and developers.
+
 ## The intended workflow
 
 You describe what you want researched in natural language to your agent
