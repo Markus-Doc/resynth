@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resynth"
+version = "0.1.0"
+description = "CLI research consolidation platform built on systematic review gates"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "M. Walker" }]
+dependencies = [
+  "click>=8.1,<9",
+  "pyyaml>=6.0,<7",
+  "rich>=13.7,<15",
+  "jinja2>=3.1,<4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9"]
+
+[project.scripts]
+resynth = "resynth.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
