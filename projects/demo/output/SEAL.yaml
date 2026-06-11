@@ -1,0 +1,14 @@
+project: demo
+version: 1
+tag: resynth-demo-v1
+sha256:
+  output/MASTER.md: 5d6cff68ba0c8ea44032ce1125ce73f62a2bc7ff76ddd7bd8cacec70d9c38444
+  output/AUDIT-REPORT.md: b953942312bd405d3a488c0b7dc4aeabd855f2c9f9109225e63551064cec8187
+  sources/S01-standards-review.md: 409e07893c4e71b4349d9ed5f43644d2947620b8140438cd7a9b2fd44733235f
+  sources/S02-engineering-field-notes.md: bd52b3e1fdc47a5e788c928d6c78f9924136a980843b137adb625780f471cef0
+  sources/S03-incident-retrospective.md: 8331a03b29db23e317c36bfb23ce4ce53abf0e2c36098b40a3f14c965fbd3da7
+  claims/S01-claims.jsonl: a712cc6de2d2c447e83aee44a4123d34376da3de311257b4e1cbad7f8d65ef77
+  claims/S02-claims.jsonl: dc2ba716cf8e3dc4dfcdbb0c319dde39b524cf783ab06c29b98314cf4e1345a4
+  claims/S03-claims.jsonl: 2b067cecff4a610a97663a0d60d8ffef88b018f1ff2256283db80d4f3fcf1384
+  index/reconciliation.jsonl: a378afeb7cb6c906c5f2ebe652faf81550d641675117d0c1946011009c9199b5
+  merge-rules.yaml: 5118c372dc7871ed94b5152c922e02aa0c8c237506a40b5d9f2f68d98419007b
