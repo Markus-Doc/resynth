@@ -1,0 +1,20 @@
+# Research Prompts: {{ project }}
+
+> [!important] Operator protocol
+> Write one prompt per platform below. Tailor each prompt to the platform's
+> strengths and ask every platform to structure its report with clear
+> headings, explicit confidence statements and cited sources. The shared
+> research question is restated here for reference.
+
+Research question: {{ topic }}
+
+{% for p in platforms %}
+## {{ p }}
+
+> [!todo] Operator writes the tailored prompt for {{ p }} here.
+
+{% endfor %}
+## Report handling
+
+Save each platform's report as markdown or text, one file per platform, then
+ingest them with resynth intake {{ project }} --source <file> per report.
