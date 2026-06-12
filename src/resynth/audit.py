@@ -150,7 +150,9 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
         return {"ok": True, "messages": [f"dry run, would seal as {tag}"]}
     top = Path(_git(["rev-parse", "--show-toplevel"], root)).resolve()
     rel_seal = Path(os.path.relpath(seal_path.resolve(), top)).as_posix()
-    _git(["add", rel_seal], root)
+    # -f: workspaces cloned from this repo gitignore projects/*; the seal
+    # file must be tracked regardless so the tag has something to pin.
+    _git(["add", "-f", rel_seal], root)
     status = _git(["status", "--porcelain", "--", rel_seal], root)
     if status:
         _git(["commit", "-m", f"Seal {project} v{version}"], root)

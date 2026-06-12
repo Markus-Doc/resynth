@@ -12,12 +12,20 @@ All notable changes to RESYNTH are documented here. The format follows
   override per workspace in `operator.yaml` as before.
 
 ### Added
+- Completion ping: when a delegated AI step runs longer than 90 seconds,
+  RESYNTH plays a sound and shows a desktop notification (Windows toast /
+  macOS notification) when it finishes, and again when the master document
+  is sealed — safe to walk away from long steps.
 - Live progress while an AI assistant works on a delegated step: a status
   line with elapsed time and when the project last had a file saved, plus
   the assistant's output streamed as it arrives, instead of a silent prompt
   until completion.
 
 ### Fixed
+- Sealing failed with "paths are ignored by one of your .gitignore files"
+  in workspaces where `projects/*` is gitignored (any workspace cloned from
+  this repo): the seal file is now force-added so the tag always has a
+  tracked seal to pin.
 - Windows: AI delegation crashed with a raw traceback when the configured
   CLI was installed as an npm `.cmd` shim (the common case for Claude Code,
   Codex and Gemini). External tools are now spawned by their resolved path,

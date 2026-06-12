@@ -7,7 +7,9 @@ never needs to learn the CLI.
 
 from __future__ import annotations
 
+import base64
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -267,6 +269,56 @@ def _choose_project(root: Path) -> str | None:
     return safe
 
 
+def _notify(body: str) -> None:
+    """Best effort ping (sound plus desktop notification) after a long wait."""
+    try:
+        if sys.platform == "win32":
+            import winsound
+
+            winsound.MessageBeep()
+            script = (
+                "$null = [Windows.UI.Notifications.ToastNotificationManager,"
+                " Windows.UI.Notifications, ContentType=WindowsRuntime];"
+                "$null = [Windows.Data.Xml.Dom.XmlDocument,"
+                " Windows.Data.Xml.Dom, ContentType=WindowsRuntime];"
+                "$x = New-Object Windows.Data.Xml.Dom.XmlDocument;"
+                "$x.LoadXml('<toast><visual><binding template=\"ToastGeneric\">"
+                f"<text>RESYNTH</text><text>{body}</text>"
+                "</binding></visual></toast>');"
+                "$t = New-Object Windows.UI.Notifications.ToastNotification $x;"
+                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("
+                "'{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}"
+                "\\WindowsPowerShell\\v1.0\\powershell.exe').Show($t)"
+            )
+            exe = shutil.which("powershell")
+            if exe:
+                subprocess.Popen(
+                    [
+                        exe,
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-WindowStyle",
+                        "Hidden",
+                        "-EncodedCommand",
+                        base64.b64encode(script.encode("utf-16-le")).decode("ascii"),
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        elif sys.platform == "darwin":
+            exe = shutil.which("osascript")
+            if exe:
+                subprocess.Popen(
+                    [exe, "-e", f'display notification "{body}" with title "RESYNTH"'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        else:
+            console.bell()
+    except Exception:
+        pass
+
+
 def _last_save_note(pdir: Path, started: float) -> str:
     try:
         latest = max((f.stat().st_mtime for f in pdir.rglob("*") if f.is_file()), default=0.0)
@@ -297,12 +349,15 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path) -> int
         ticker = threading.Thread(target=tick, daemon=True)
         ticker.start()
         try:
-            return operator_ai.run_task(
+            rc = operator_ai.run_task(
                 ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]")
             )
         finally:
             stop.set()
             ticker.join(timeout=5)
+    if time.time() - started > 90:
+        _notify(f"{label} has finished this step. Come back to the terminal.")
+    return rc
 
 
 def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str]) -> bool:
@@ -525,6 +580,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 sealed = run_seal(project)
                 run_export(project)
                 console.print(f"[green]Sealed as {sealed['tag']}[/green]")
+                _notify("Your master document is sealed and ready.")
             else:
                 return
         else:
