@@ -18,6 +18,11 @@ def test_scaffold_generation(ws):
     assert "## Appendix: Source Register" in text
     assert "[!todo]" in text
     assert "[S01-C001, S02-C001]" in text
+    assert "| Source | Title | Type | Authority | Authored | Link | Content hash |" in text
+    row = next(line for line in text.splitlines() if line.startswith("| S01 |"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[2] == "report", "Type cell carries source_type"
+    assert cells[5] == "-", "Link cell renders a dash when url is absent"
 
 
 def test_full_synthesis_passes(ws):
