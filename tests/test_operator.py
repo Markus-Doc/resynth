@@ -104,6 +104,51 @@ def test_run_task_keeps_prompt_in_argv_for_real_executables(ws, monkeypatch, tmp
     assert seen["input"] is None
 
 
+def test_run_task_streams_lines_to_callback(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: r"C:\fake\claude.cmd")
+
+    class FakeStdin:
+        def __init__(self):
+            self.text = ""
+            self.closed = False
+
+        def write(self, text):
+            self.text += text
+
+        def close(self):
+            self.closed = True
+
+    class FakeProc:
+        def __init__(self):
+            self.stdin = FakeStdin()
+            self.stdout = iter(["first line\n", "second line\n"])
+
+        def wait(self, timeout=None):
+            return 0
+
+        def kill(self):
+            pass
+
+    proc = FakeProc()
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: proc)
+    lines = []
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "the task", tmp_path, on_line=lines.append) == 0
+    assert lines == ["first line", "second line"]
+    assert "the task" in proc.stdin.text and proc.stdin.closed
+
+
+def test_run_task_streaming_returns_127_on_spawn_failure(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: r"C:\fake\claude.cmd")
+
+    def fake_popen(*a, **k):
+        raise FileNotFoundError(a[0][0])
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "task", tmp_path, on_line=lambda ln: None) == 127
+
+
 def test_run_task_returns_127_when_cli_missing(ws, monkeypatch, tmp_path):
     monkeypatch.setattr("shutil.which", lambda name: None)
     cfg = {"cli": "claude", "model": None, "effort": "high"}

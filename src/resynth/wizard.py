@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -265,6 +267,44 @@ def _choose_project(root: Path) -> str | None:
     return safe
 
 
+def _last_save_note(pdir: Path, started: float) -> str:
+    try:
+        latest = max((f.stat().st_mtime for f in pdir.rglob("*") if f.is_file()), default=0.0)
+    except OSError:
+        return ""
+    if latest < started:
+        return ", nothing saved yet"
+    ago = max(0, int(time.time() - latest))
+    return f", last file saved {ago}s ago"
+
+
+def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path) -> int:
+    """Run one delegated task with a live elapsed/activity status line."""
+    label = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {}).get("label", ai_cfg["cli"])
+    started = time.time()
+    with console.status(f"[cyan]{label} is working...[/cyan]") as status:
+        stop = threading.Event()
+
+        def tick():
+            while not stop.wait(2):
+                m, s = divmod(int(time.time() - started), 60)
+                status.update(
+                    f"[cyan]{label} is working, {m}m {s:02d}s elapsed"
+                    f"{_last_save_note(pdir, started)} "
+                    "(it reports in full when done, Ctrl+C to stop it)[/cyan]"
+                )
+
+        ticker = threading.Thread(target=tick, daemon=True)
+        ticker.start()
+        try:
+            return operator_ai.run_task(
+                ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]")
+            )
+        finally:
+            stop.set()
+            ticker.join(timeout=5)
+
+
 def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str]) -> bool:
     """Run one operator task through the configured AI CLI. True on rc 0."""
     prompt = DELEGATED_PROMPTS[key].format(project=project)
@@ -278,7 +318,7 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
         f"effort {ai_cfg.get('effort', 'high')})...[/cyan]\n"
     )
-    rc = operator_ai.run_task(ai_cfg, prompt, root)
+    rc = _run_with_progress(ai_cfg, prompt, root, config.project_dir(project))
     if rc == 127:
         known = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {})
         label = known.get("label", ai_cfg["cli"])

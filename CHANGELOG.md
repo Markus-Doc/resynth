@@ -6,6 +6,12 @@ All notable changes to RESYNTH are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Live progress while an AI assistant works on a delegated step: a status
+  line with elapsed time and when the project last had a file saved, plus
+  the assistant's output streamed as it arrives, instead of a silent prompt
+  until completion.
+
 ### Fixed
 - Windows: AI delegation crashed with a raw traceback when the configured
   CLI was installed as an npm `.cmd` shim (the common case for Claude Code,

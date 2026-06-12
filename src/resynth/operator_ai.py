@@ -108,8 +108,12 @@ def build_command(cfg: dict, prompt: str, *, prompt_via_stdin: bool = False) -> 
     return ([cli] if prompt_via_stdin else [cli, prompt]), env
 
 
-def run_task(cfg: dict, prompt: str, cwd: Path) -> int:
-    """Run the configured AI CLI on one operator task, streaming output."""
+def run_task(cfg: dict, prompt: str, cwd: Path, on_line=None) -> int:
+    """Run the configured AI CLI on one operator task.
+
+    With on_line set, output is captured and fed to it line by line so the
+    caller can render progress; otherwise the child writes to the console.
+    """
     exe = shutil.which(cfg["cli"])
     if not exe:
         return 127
@@ -119,14 +123,41 @@ def run_task(cfg: dict, prompt: str, cwd: Path) -> int:
     cmd, extra_env = build_command(cfg, prompt, prompt_via_stdin=via_stdin)
     cmd[0] = exe
     env = {**os.environ, **extra_env}
-    run_kwargs: dict = {"cwd": cwd, "env": env, "timeout": 1800}
-    if via_stdin:
-        run_kwargs.update(input=full_prompt(cfg, prompt), encoding="utf-8")
+    if on_line is None:
+        run_kwargs: dict = {"cwd": cwd, "env": env, "timeout": 1800}
+        if via_stdin:
+            run_kwargs.update(input=full_prompt(cfg, prompt), encoding="utf-8")
+        try:
+            return subprocess.run(cmd, **run_kwargs).returncode
+        except subprocess.TimeoutExpired:
+            return 124
+        except KeyboardInterrupt:
+            return 130
+        except OSError:
+            return 127
     try:
-        return subprocess.run(cmd, **run_kwargs).returncode
-    except subprocess.TimeoutExpired:
-        return 124
-    except KeyboardInterrupt:
-        return 130
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.PIPE if via_stdin else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+        )
     except OSError:
         return 127
+    try:
+        if via_stdin:
+            proc.stdin.write(full_prompt(cfg, prompt))
+            proc.stdin.close()
+        for line in proc.stdout:
+            on_line(line.rstrip("\n"))
+        return proc.wait(timeout=60)
+    except (subprocess.TimeoutExpired, OSError):
+        proc.kill()
+        return 124
+    except KeyboardInterrupt:
+        proc.kill()
+        return 130
