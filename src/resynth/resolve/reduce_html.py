@@ -179,6 +179,7 @@ class _TitleParser(HTMLParser):
 
 
 def extract_title(html: str) -> str | None:
+    """Page title, preferring og:title, then <title>, then the first h1."""
     parser = _TitleParser()
     parser.feed(html)
     parser.close()

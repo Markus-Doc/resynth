@@ -94,6 +94,8 @@ def http_get(url: str) -> tuple[bytes, str, str]:
 
 
 def decode(body: bytes, content_type: str) -> str:
+    """Decode a response body using the declared or sniffed charset,
+    falling back to utf-8 with replacement."""
     match = _CHARSET_RE.search(content_type or "")
     if not match:
         match = _CHARSET_RE.search(body[:2048].decode("ascii", errors="ignore"))

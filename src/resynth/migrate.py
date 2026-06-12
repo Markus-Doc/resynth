@@ -10,6 +10,14 @@ from .fsutil import parse_frontmatter, safe_write
 
 
 def run_migrate(project: str, dry_run: bool = False) -> dict:
+    """Upgrade every schema v1 source in a project to schema v2.
+
+    Adds schema_version, source_type, url and resolved_from to the
+    frontmatter and leaves the body untouched, so the stored content hash
+    stays valid. Sources already on v2 are left unchanged, which makes
+    the command idempotent. The seal is never touched here, re-sealing
+    is a separate operator act. Returns ok, gate, events and messages.
+    """
     pdir = config.project_dir(project)
     files = sorted((pdir / "sources").glob("S*.md"))
     if not files:

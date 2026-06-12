@@ -1,5 +1,7 @@
-"""Stage 1.5: RESOLVE. Follow links inside ingested sources, fetch the
-linked material and register it as new sources with provenance.
+"""Source resolution, a stage 1 verb. Follow links inside ingested
+sources, fetch the linked material and register it as new sources with
+provenance. Resolution re-evaluates gate 01-intake rather than adding a
+gate of its own.
 
 Outcomes are tracked in index/resolution.jsonl so re-runs are cheap and
 byte identical when nothing changed.
@@ -30,6 +32,7 @@ _FETCHERS = {"local": fetch_local, "youtube": fetch_youtube, "vimeo": fetch_vime
 
 
 def manifest_path(pdir: Path) -> Path:
+    """Path to the resolution manifest inside a project directory."""
     return pdir / "index" / MANIFEST
 
 
@@ -124,6 +127,16 @@ def run_resolve(
     source_ids: list[str] | None = None,
     dry_run: bool = False,
 ) -> dict:
+    """Discover, fetch and register link targets found inside sources.
+
+    By default every source without a resolved_from parent is scanned, so
+    fetched sources are never scanned in turn. Passing source_ids scans
+    exactly those sources instead, including already resolved ones. The
+    only filter keeps just the targets containing that substring. Targets
+    recorded in the manifest as fetched or duplicate are skipped, failed
+    and transcript_pending targets are retried. Re-evaluates gate
+    01-intake and returns ok, gate, counts, events and messages.
+    """
     pdir = config.project_dir(project)
     sources = intake.load_sources(pdir)
     if not sources:

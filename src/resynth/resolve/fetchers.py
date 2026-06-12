@@ -36,6 +36,7 @@ _VTT_TIME = re.compile(
 
 
 def classify_target(raw: str) -> str:
+    """Classify a raw target as youtube, vimeo, url or local."""
     if re.match(r"^https?://", raw, re.IGNORECASE):
         host = (urlsplit(raw).hostname or "").lower()
         if host in _YT_HOSTS:
@@ -78,6 +79,8 @@ def _heading_title(body: str) -> str | None:
 
 
 def fetch_local(path: str) -> dict:
+    """Convert a local file to a doc. PDFs become source_type pdf,
+    everything else becomes notes."""
     src = Path(path)
     try:
         body = intake._convert(src)
@@ -88,6 +91,8 @@ def fetch_local(path: str) -> dict:
 
 
 def fetch_url(url: str) -> dict:
+    """Fetch a web url. PDF responses are converted with pdftotext and
+    HTML pages are reduced to clean text. Anything else is an error."""
     payload, content_type, final_url = net.http_get(url)
     ct = (content_type or "").split(";")[0].strip().lower()
     path = urlsplit(final_url or url).path.lower()
@@ -175,6 +180,8 @@ def _youtube_id(url: str) -> str | None:
 
 
 def fetch_youtube(url: str) -> dict:
+    """Fetch a YouTube video as a timestamped transcript source. Falls
+    back to a pending stub when no public caption track is available."""
     vid = _youtube_id(url)
     if not vid:
         raise FetchError("could not determine youtube video id")
@@ -244,6 +251,8 @@ def _parse_vtt(text: str) -> list[tuple[float, float, str]]:
 
 
 def fetch_vimeo(url: str) -> dict:
+    """Fetch a Vimeo video as a timestamped transcript source. Falls
+    back to a pending stub when no public text track is available."""
     vid = _vimeo_id(url)
     if not vid:
         raise FetchError("could not determine vimeo video id")
