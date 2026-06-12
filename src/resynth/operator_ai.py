@@ -23,7 +23,7 @@ EFFORTS = ["low", "medium", "high"]
 KNOWN_CLIS = {
     "claude": {
         "label": "Claude Code",
-        "default_model": "claude-opus-4-8",
+        "default_model": "claude-fable-5",
         "install_hint": "npm install -g @anthropic-ai/claude-code",
     },
     "codex": {

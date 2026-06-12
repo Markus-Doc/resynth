@@ -6,6 +6,11 @@ All notable changes to RESYNTH are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Default model for the Claude Code operator is now Fable 5
+  (`claude-fable-5`), Anthropic's newest and fastest top-tier model;
+  override per workspace in `operator.yaml` as before.
+
 ### Added
 - Live progress while an AI assistant works on a delegated step: a status
   line with elapsed time and when the project last had a file saved, plus
