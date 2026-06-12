@@ -71,15 +71,25 @@ def resolved_model(cfg: dict) -> str | None:
     return known["default_model"] if known else None
 
 
-def build_command(cfg: dict, prompt: str) -> tuple[list[str], dict]:
-    """Return (argv, extra_env) to run one operator task non-interactively."""
+def full_prompt(cfg: dict, prompt: str) -> str:
+    effort = cfg.get("effort") or "high"
+    return f"Reasoning effort: {effort}.\n\n{prompt}"
+
+
+def build_command(cfg: dict, prompt: str, *, prompt_via_stdin: bool = False) -> tuple[list[str], dict]:
+    """Return (argv, extra_env) to run one operator task non-interactively.
+
+    With prompt_via_stdin the prompt is left out of argv and the caller
+    pipes it on stdin instead.
+    """
     cli = cfg["cli"]
     effort = cfg.get("effort") or "high"
     model = resolved_model(cfg)
-    prompt = f"Reasoning effort: {effort}.\n\n{prompt}"
+    prompt = full_prompt(cfg, prompt)
     env: dict[str, str] = {}
     if cli == "claude":
-        cmd = ["claude", "-p", prompt, "--permission-mode", "acceptEdits"]
+        cmd = ["claude", "-p"] if prompt_via_stdin else ["claude", "-p", prompt]
+        cmd += ["--permission-mode", "acceptEdits"]
         if model:
             cmd += ["--model", model]
         if effort == "high":
@@ -89,25 +99,34 @@ def build_command(cfg: dict, prompt: str) -> tuple[list[str], dict]:
         cmd = ["codex", "exec", "-c", f"model_reasoning_effort={effort}"]
         if model:
             cmd += ["-m", model]
-        return cmd + [prompt], env
+        return cmd + ["-" if prompt_via_stdin else prompt], env
     if cli == "gemini":
-        cmd = ["gemini", "-p", prompt]
+        cmd = ["gemini"] if prompt_via_stdin else ["gemini", "-p", prompt]
         if model:
             cmd += ["-m", model]
         return cmd, env
-    return [cli, prompt], env
+    return ([cli] if prompt_via_stdin else [cli, prompt]), env
 
 
 def run_task(cfg: dict, prompt: str, cwd: Path) -> int:
     """Run the configured AI CLI on one operator task, streaming output."""
-    cmd, extra_env = build_command(cfg, prompt)
-    exe = shutil.which(cmd[0])
+    exe = shutil.which(cfg["cli"])
     if not exe:
         return 127
+    # Windows runs .cmd/.bat shims through cmd.exe, which re-parses argv and
+    # mangles multi-line prompts, so those get the prompt on stdin instead.
+    via_stdin = exe.lower().endswith((".cmd", ".bat"))
+    cmd, extra_env = build_command(cfg, prompt, prompt_via_stdin=via_stdin)
+    cmd[0] = exe
     env = {**os.environ, **extra_env}
+    run_kwargs: dict = {"cwd": cwd, "env": env, "timeout": 1800}
+    if via_stdin:
+        run_kwargs.update(input=full_prompt(cfg, prompt), encoding="utf-8")
     try:
-        return subprocess.run(cmd, cwd=cwd, env=env, timeout=1800).returncode
+        return subprocess.run(cmd, **run_kwargs).returncode
     except subprocess.TimeoutExpired:
         return 124
     except KeyboardInterrupt:
         return 130
+    except OSError:
+        return 127

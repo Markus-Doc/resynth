@@ -42,18 +42,24 @@ def _convert(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     if suffix == ".docx":
         tool, args = "pandoc", [str(path), "-t", "gfm"]
-        hint = "install pandoc to ingest .docx files (apt install pandoc)"
+        hint = "install pandoc to ingest .docx files (https://pandoc.org/installing.html)"
     elif suffix == ".pdf":
         tool, args = "pdftotext", ["-layout", str(path), "-"]
-        hint = "install pdftotext to ingest .pdf files (apt install poppler-utils)"
+        hint = "install pdftotext to ingest .pdf files (part of poppler, https://poppler.freedesktop.org)"
     else:
         raise ResynthError(
             f"unsupported source format '{suffix}' for {path.name}. "
             f"Supported: .md .txt .docx .pdf"
         )
-    if not shutil.which(tool):
+    exe = shutil.which(tool)
+    if not exe:
         raise ResynthError(f"{tool} not found. {hint}")
-    proc = subprocess.run([tool, *args], capture_output=True, text=True)
+    try:
+        proc = subprocess.run(
+            [exe, *args], capture_output=True, encoding="utf-8", errors="replace"
+        )
+    except OSError as err:
+        raise ResynthError(f"{tool} could not be run: {err}") from err
     if proc.returncode != 0:
         raise ResynthError(f"{tool} failed on {path.name}: {proc.stderr.strip()}")
     return proc.stdout

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as _json
 import sys
+import traceback
 
 import click
 from rich.console import Console
@@ -58,7 +59,52 @@ def common(fn):
     return fn
 
 
-@click.group(invoke_without_command=True)
+class _GuardedGroup(click.Group):
+    """Entry point guard: unexpected failures stay short and human readable."""
+
+    def main(self, *args, standalone_mode=True, **kwargs):
+        if not standalone_mode:
+            return super().main(*args, standalone_mode=False, **kwargs)
+        try:
+            rv = super().main(*args, standalone_mode=False, **kwargs)
+        except click.ClickException as exc:
+            exc.show()
+            sys.exit(exc.exit_code)
+        except (click.exceptions.Abort, KeyboardInterrupt, EOFError):
+            console.print("\nbye")
+            sys.exit(130)
+        except ResynthError as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            sys.exit(1)
+        except Exception as exc:  # noqa: BLE001
+            log_path = None
+            try:
+                log_path = write_run_log(
+                    "crash",
+                    None,
+                    [
+                        {
+                            "error": f"{type(exc).__name__}: {exc}",
+                            "traceback": traceback.format_exc(),
+                        }
+                    ],
+                    False,
+                )
+            except Exception:
+                log_path = None
+            console.print(f"[red]Something went wrong that RESYNTH did not expect:[/red] {exc}")
+            if log_path:
+                console.print(f"The full details are saved here: {log_path}")
+                console.print("If it happens again, share that file when you report the problem.")
+            else:
+                console.print(
+                    "Please try the command again, and report the problem if it keeps happening."
+                )
+            sys.exit(1)
+        sys.exit(rv if isinstance(rv, int) else 0)
+
+
+@click.group(cls=_GuardedGroup, invoke_without_command=True)
 @click.pass_context
 def main(ctx):
     """RESYNTH, research consolidation with systematic review gates.

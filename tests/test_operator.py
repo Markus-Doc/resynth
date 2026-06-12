@@ -46,3 +46,76 @@ def test_save_and_load_roundtrip(ws):
 def test_detect_uses_path(ws, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: "/bin/x" if name == "claude" else None)
     assert operator_ai.detect() == ["claude"]
+
+
+def test_run_task_spawns_resolved_path(ws, monkeypatch, tmp_path):
+    resolved = r"C:\fake\claude.cmd"
+    seen = {}
+    monkeypatch.setattr("shutil.which", lambda name: resolved)
+
+    class FakeProc:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        return FakeProc()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "task", tmp_path) == 0
+    assert seen["argv"][0] == resolved
+
+
+def test_run_task_pipes_prompt_to_batch_shim(ws, monkeypatch, tmp_path):
+    seen = {}
+    monkeypatch.setattr("shutil.which", lambda name: r"C:\fake\claude.cmd")
+
+    class FakeProc:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["input"] = kwargs.get("input")
+        return FakeProc()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "the task", tmp_path) == 0
+    assert not any("the task" in part for part in seen["argv"])
+    assert "the task" in seen["input"]
+
+
+def test_run_task_keeps_prompt_in_argv_for_real_executables(ws, monkeypatch, tmp_path):
+    seen = {}
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/claude")
+
+    class FakeProc:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["input"] = kwargs.get("input")
+        return FakeProc()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "the task", tmp_path) == 0
+    assert any("the task" in part for part in seen["argv"])
+    assert seen["input"] is None
+
+
+def test_run_task_returns_127_when_cli_missing(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "task", tmp_path) == 127
+
+
+def test_run_task_returns_127_on_spawn_failure(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: r"C:\fake\claude.cmd")
+
+    def fake_run(argv, **kwargs):
+        raise FileNotFoundError(argv[0])
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    assert operator_ai.run_task(cfg, "task", tmp_path) == 127

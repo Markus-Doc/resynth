@@ -4,6 +4,22 @@ All notable changes to RESYNTH are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Windows: AI delegation crashed with a raw traceback when the configured
+  CLI was installed as an npm `.cmd` shim (the common case for Claude Code,
+  Codex and Gemini). External tools are now spawned by their resolved path,
+  and batch shims receive the prompt on stdin so multi line prompts survive
+  cmd.exe argument parsing.
+- The wizard now falls back to manual guidance with a friendly install hint
+  when the AI assistant cannot be launched, instead of dying.
+- The CLI never prints a raw traceback: unexpected errors show a short
+  message plus the path to a saved crash log and exit nonzero.
+- Git, pandoc and pdftotext launches are hardened the same way (resolved
+  paths, friendly errors when missing, UTF-8 output decoding), and sealing
+  no longer fails on OneDrive/symlinked workspace paths.
+
 ## [0.1.0] - 2026-06-11
 
 First public release.

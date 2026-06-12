@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -107,7 +108,12 @@ def run_audit(project: str, dry_run: bool = False) -> dict:
 
 
 def _git(args: list[str], cwd: Path) -> str:
-    proc = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, encoding="utf-8", errors="replace"
+        )
+    except OSError as err:
+        raise ResynthError(f"git could not be run: {err}") from err
     if proc.returncode != 0:
         raise ResynthError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc.stdout.strip()
@@ -142,7 +148,8 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
     outcome = safe_write(seal_path, dump_yaml(seal), pdir, dry_run=dry_run)
     if dry_run:
         return {"ok": True, "messages": [f"dry run, would seal as {tag}"]}
-    rel_seal = seal_path.resolve().relative_to(Path(_git(["rev-parse", "--show-toplevel"], root))).as_posix()
+    top = Path(_git(["rev-parse", "--show-toplevel"], root)).resolve()
+    rel_seal = Path(os.path.relpath(seal_path.resolve(), top)).as_posix()
     _git(["add", rel_seal], root)
     status = _git(["status", "--porcelain", "--", rel_seal], root)
     if status:

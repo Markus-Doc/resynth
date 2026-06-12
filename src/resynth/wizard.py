@@ -178,7 +178,12 @@ def _ensure_workspace() -> Path:
 
 def _ensure_git(root: Path) -> None:
     def git(*args, ok_fail=False):
-        proc = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
+        try:
+            proc = subprocess.run(
+                ["git", *args], cwd=root, capture_output=True, encoding="utf-8", errors="replace"
+            )
+        except OSError as err:
+            raise ResynthError(f"git could not be run: {err}") from err
         if proc.returncode != 0 and not ok_fail:
             raise ResynthError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
         return proc
@@ -274,7 +279,20 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
         f"effort {ai_cfg.get('effort', 'high')})...[/cyan]\n"
     )
     rc = operator_ai.run_task(ai_cfg, prompt, root)
-    if rc != 0:
+    if rc == 127:
+        known = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {})
+        label = known.get("label", ai_cfg["cli"])
+        body = (
+            f"I could not launch {label} on this machine, so I will guide\n"
+            "you through this step manually instead."
+        )
+        if known.get("install_hint"):
+            body += (
+                "\n\nTo let it do the work next time, install it and re-run RESYNTH:\n"
+                f"  {known['install_hint']}"
+            )
+        _panel("Your AI assistant could not be launched", body)
+    elif rc != 0:
         console.print(f"[red]{ai_cfg['cli']} exited with code {rc}.[/red]")
     return rc == 0
 
@@ -290,11 +308,13 @@ def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
         console.print("Good, we will load them next.")
         return True
     prompts_file = pdir / "prompts" / "RESEARCH-PROMPTS.md"
+    delegated = False
     if ai_cfg.get("cli") and Confirm.ask(
         f"Let {ai_cfg['cli']} write the platform research prompts for you now?",
         default=True,
     ):
-        _delegate(project, root, ai_cfg, "prompts", [])
+        delegated = _delegate(project, root, ai_cfg, "prompts", [])
+    if delegated:
         _panel(
             "Step 1 of 6: research prompts",
             "Your prompts are ready, I will open them now.\n\n"

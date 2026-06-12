@@ -13,7 +13,7 @@ def _probe(cmd: str, flag: str = "--version") -> str | None:
     if not path:
         return None
     try:
-        out = subprocess.run([cmd, flag], capture_output=True, text=True, timeout=15)
+        out = subprocess.run([path, flag], capture_output=True, text=True, timeout=15)
         first = (out.stdout or out.stderr).strip().splitlines()
         return first[0] if first else "present"
     except Exception:
