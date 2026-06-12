@@ -192,7 +192,7 @@ def run_resolve(
                     prior=prior,
                 )
                 counts["transcript_pending"] += 1
-                messages.append(f"{raw}: transcript pending, stub created as {prior_sid}")
+                messages.append(f"{raw}: transcript still pending ({prior_sid})")
                 events.append(
                     {"target": raw, "action": "transcript-pending", "source_id": prior_sid}
                 )
