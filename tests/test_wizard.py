@@ -49,3 +49,19 @@ def test_state_done_after_seal(ws):
     pdir = run_full()
     run_brief("demo", "topic")
     assert project_state(pdir) == "done"
+
+
+def test_cli_version_and_new_commands(ws):
+    from click.testing import CliRunner
+
+    from resynth import __version__
+    from resynth.cli import main
+
+    runner = CliRunner()
+    res = runner.invoke(main, ["--version"])
+    assert res.exit_code == 0
+    assert f"resynth, version {__version__}" in res.output
+    assert "bye" not in res.output
+    for cmd in ("resolve", "migrate"):
+        res = runner.invoke(main, [cmd, "--help"])
+        assert res.exit_code == 0, res.output
