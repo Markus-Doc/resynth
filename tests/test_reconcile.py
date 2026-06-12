@@ -23,6 +23,30 @@ def test_workspace_and_candidates(ws):
     assert {"S01-C001", "S02-C001"} in pairs
 
 
+def test_claims_index_carries_locator_hint(ws):
+    pdir = to_extracted()
+    path = pdir / "claims" / "S03-claims.jsonl"
+    claim = {
+        "claim_id": "S03-C099",
+        "source_id": "S03",
+        "claim_text": "Deep linked claim",
+        "claim_type": "fact",
+        "topic_tags": ["locator-test"],
+        "supporting_quote_location": "Somewhere",
+        "confidence_as_stated": "unstated",
+        "depends_on": [],
+        "source_locator": {"timestamp": "00:14:32", "page": 12},
+    }
+    path.write_text(
+        path.read_text(encoding="utf-8") + json.dumps(claim) + "\n", encoding="utf-8"
+    )
+    run_reconcile("demo")
+    index = (pdir / "index" / "claims-index.md").read_text(encoding="utf-8")
+    line = next(l for l in index.splitlines() if "S03-C099" in l)
+    assert " @ 00:14:32" in line
+    assert line.index("@ 00:14:32") < line.index("Deep linked claim")
+
+
 def test_gate_fails_until_decisions_written(ws):
     to_extracted()
     result = run_reconcile("demo")

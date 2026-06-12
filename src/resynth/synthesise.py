@@ -87,6 +87,8 @@ def run_synthesise(project: str, dry_run: bool = False, force: bool = False) -> 
             {
                 "source_id": fm["source_id"],
                 "title": fm["title"],
+                "source_type": fm.get("source_type") or "report",
+                "url": fm.get("url"),
                 "authority_tier": fm["authority_tier"],
                 "date_authored": fm["date_authored"],
                 "sha256_short": str(fm["sha256"])[:12],

@@ -28,6 +28,9 @@ REQUIRED_FIELDS = {
     "confidence_as_stated",
     "depends_on",
 }
+OPTIONAL_FIELDS = {"source_locator"}
+LOCATOR_KEYS = {"url", "page", "timestamp", "anchor"}
+TIMESTAMP_RE = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
 COVERAGE_MIN_BYTES = 2048
 COVERAGE_MIN_CLAIMS = 3
 
@@ -61,6 +64,8 @@ def _workspace_header(sid: str) -> str:
         f"# One JSON object per line. Lines starting with # are ignored.\n"
         f"# Schema template, copy the line below, remove the leading #, fill it in:\n"
         f"# {example}\n"
+        f'# optional: "source_locator": {{"url": "https://...", "page": 12, '
+        f'"timestamp": "00:14:32", "anchor": "section-slug"}}\n'
     )
 
 
@@ -94,10 +99,32 @@ def run_extract(project: str, dry_run: bool = False) -> dict:
     }
 
 
+def _validate_locator(loc) -> list[str]:
+    if not isinstance(loc, dict):
+        return ["source_locator must be an object"]
+    errors = []
+    if not loc:
+        errors.append("source_locator must have at least one of url, page, timestamp, anchor")
+    errors.extend(f"unknown source_locator key {k}" for k in sorted(loc.keys() - LOCATOR_KEYS))
+    if "url" in loc and (not isinstance(loc["url"], str) or not loc["url"].strip()):
+        errors.append("source_locator.url must be a non-empty string")
+    if "page" in loc and (
+        not isinstance(loc["page"], int) or isinstance(loc["page"], bool) or loc["page"] < 1
+    ):
+        errors.append("source_locator.page must be a positive integer")
+    if "timestamp" in loc and (
+        not isinstance(loc["timestamp"], str) or not TIMESTAMP_RE.match(loc["timestamp"])
+    ):
+        errors.append("source_locator.timestamp must look like H:MM or HH:MM:SS")
+    if "anchor" in loc and (not isinstance(loc["anchor"], str) or not loc["anchor"].strip()):
+        errors.append("source_locator.anchor must be a non-empty string")
+    return errors
+
+
 def validate_claim(obj: dict, sid: str) -> list[str]:
     errors = []
     missing = REQUIRED_FIELDS - obj.keys()
-    extra = obj.keys() - REQUIRED_FIELDS
+    extra = obj.keys() - REQUIRED_FIELDS - OPTIONAL_FIELDS
     errors.extend(f"missing field {f}" for f in sorted(missing))
     errors.extend(f"unknown field {f}" for f in sorted(extra))
     if missing or extra:
@@ -134,6 +161,8 @@ def validate_claim(obj: dict, sid: str) -> list[str]:
         isinstance(d, str) and CLAIM_ID_RE.match(d) for d in deps
     ):
         errors.append("depends_on must be a list of claim ids in SNN-CNNN format")
+    if "source_locator" in obj:
+        errors.extend(_validate_locator(obj["source_locator"]))
     return errors
 
 
@@ -168,6 +197,8 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
             reasons.append(f"{sid}: claims file missing, run resynth extract")
             continue
         count = 0
+        src_type = fm.get("source_type")
+        src_url = fm.get("url")
         for lineno, _raw, obj, err in iter_jsonl(path):
             where = f"{path.name}:{lineno}"
             if err:
@@ -181,6 +212,12 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
                     reasons.append(f"{where}: duplicate claim_id {cid}, first seen {seen_ids[cid]}")
                 else:
                     seen_ids[cid] = where
+            loc = obj.get("source_locator")
+            loc = loc if isinstance(loc, dict) else {}
+            if src_type == "video-transcript" and not loc.get("timestamp"):
+                warnings.append(f"{cid}: video source claim without a timestamp locator")
+            if src_url and loc.get("url") and loc["url"] != src_url:
+                warnings.append(f"{cid}: locator url does not match the source url")
             count += 1
             all_claims.append(obj)
         claims_by_source[sid] = count

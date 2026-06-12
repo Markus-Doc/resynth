@@ -35,8 +35,8 @@ No conflicts were recorded during reconciliation.
 
 ## Appendix: Source Register
 
-| Source | Title | Authority | Authored | Content hash |
-| --- | --- | --- | --- | --- |
+| Source | Title | Type | Authority | Authored | Link | Content hash |
+| --- | --- | --- | --- | --- | --- | --- |
 {% for s in sources %}
-| {{ s.source_id }} | {{ s.title }} | {{ s.authority_tier }} | {{ s.date_authored }} | {{ s.sha256_short }} |
+| {{ s.source_id }} | {{ s.title }} | {{ s.source_type }} | {{ s.authority_tier }} | {{ s.date_authored }} | {{ s.url or "-" }} | {{ s.sha256_short }} |
 {% endfor %}

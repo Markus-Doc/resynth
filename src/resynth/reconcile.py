@@ -58,6 +58,20 @@ def _candidates(claims: list[dict]) -> list[dict]:
     return out
 
 
+def _locator_hint(claim: dict) -> str:
+    """Short deep link hint for the claims index, empty when absent."""
+    loc = claim.get("source_locator")
+    if not isinstance(loc, dict):
+        return ""
+    if loc.get("timestamp"):
+        return f" @ {loc['timestamp']}"
+    if loc.get("page"):
+        return f" p. {loc['page']}"
+    if loc.get("anchor"):
+        return f" #{loc['anchor']}"
+    return ""
+
+
 def _claims_index_md(project: str, claims: list[dict]) -> str:
     by_tag: dict[str, list[dict]] = {}
     for c in claims:
@@ -77,7 +91,7 @@ def _claims_index_md(project: str, claims: list[dict]) -> str:
         for c in sorted(by_tag[tag], key=lambda c: c["claim_id"]):
             lines.append(
                 f"- {c['claim_id']} ({c['source_id']}, {c['claim_type']}, "
-                f"confidence {c['confidence_as_stated']}) {c['claim_text']}"
+                f"confidence {c['confidence_as_stated']}){_locator_hint(c)} {c['claim_text']}"
             )
         lines.append("")
     return "\n".join(lines)

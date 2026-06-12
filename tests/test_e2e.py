@@ -2,7 +2,9 @@
 simulated operator inputs, finishing sealed with every gate PASS."""
 
 import json
+from pathlib import Path
 
+import pytest
 import yaml
 
 from click.testing import CliRunner
@@ -12,8 +14,9 @@ from helpers import DEMO_SOURCES, git_init, snapshot
 from resynth import config, demo_operator
 from resynth.audit import run_audit, run_seal
 from resynth.cli import main as cli_main
-from resynth.export import run_export
-from resynth.extract import run_extract, run_extract_verify
+from resynth.errors import ResynthError
+from resynth.export import load_master, run_export
+from resynth.extract import load_all_claims, run_extract, run_extract_verify
 from resynth.gates import all_gates
 from resynth.intake import run_intake
 from resynth.project import run_brief, run_init
@@ -49,8 +52,22 @@ def test_full_pipeline(ws):
     assert (pdir / "output" / "SEAL.yaml").is_file()
     assert run_export("demo")["ok"]
     exported = json.loads((pdir / "output" / "MASTER.json").read_text(encoding="utf-8"))
-    assert exported["format"] == "resynth-master/1"
+    assert exported["format"] == "resynth-master/2"
     assert len(exported["claims"]) == 11
+    assert [s["source_id"] for s in exported["sources"]] == ["S01", "S02", "S03"]
+    for src in exported["sources"]:
+        assert src["schema_version"] == 2
+        assert src["source_type"] == "report"
+        assert "url" in src and "resolved_from" in src
+        assert "_file" not in src and "_body" not in src
+    # claims are dumped whole, so optional fields like source_locator ride along
+    assert exported["claims"] == sorted(
+        load_all_claims(pdir), key=lambda c: c["claim_id"]
+    )
+
+    loaded = load_master(pdir / "output" / "MASTER.json")
+    assert loaded["format_version"] == 2
+    assert loaded["sources"] == exported["sources"]
 
     runner = CliRunner()
     result = runner.invoke(cli_main, ["status", "demo", "--json"])
@@ -77,6 +94,24 @@ def test_dry_run_writes_nothing(ws):
     )
     assert snapshot(pdir) == before
     assert (config.runs_dir()).is_dir(), "dry runs still produce a run log"
+
+
+V1_FIXTURE = Path(__file__).resolve().parents[1] / "projects" / "demo" / "output" / "MASTER.json"
+
+
+def test_load_master_v1_fixture():
+    loaded = load_master(V1_FIXTURE)
+    assert loaded["format"] == "resynth-master/1"
+    assert loaded["format_version"] == 1
+    assert loaded["sources"] == []
+    assert loaded["claims"], "v1 payload content passes through untouched"
+
+
+def test_load_master_unknown_format(tmp_path):
+    bad = tmp_path / "MASTER.json"
+    bad.write_text(json.dumps({"format": "resynth-master/9"}), encoding="utf-8")
+    with pytest.raises(ResynthError, match="unsupported master format resynth-master/9"):
+        load_master(bad)
 
 
 def test_doctor_json(ws):

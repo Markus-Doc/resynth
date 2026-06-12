@@ -6,12 +6,31 @@ All notable changes to RESYNTH are documented here. The format follows
 
 ## [Unreleased]
 
-### Changed
-- Default model for the Claude Code operator is now Fable 5
-  (`claude-fable-5`), Anthropic's newest and fastest top-tier model;
-  override per workspace in `operator.yaml` as before.
+## [0.2.0] - 2026-06-12
 
 ### Added
+- Source resolution (`resynth resolve`): follows links and file references
+  found inside ingested sources and registers what it fetches as new first
+  class sources with provenance. Five target kinds: html articles, pdf
+  links, local files, YouTube videos and Vimeo videos. Public video
+  captions become timestamped transcripts.
+- Transcript pending stubs: a video without public captions still becomes
+  a real source, and a later successful fetch upgrades the stub in place,
+  keeping its source id.
+- The resolution manifest at `index/resolution.jsonl`: records every
+  target and its outcome so re-runs are idempotent. Fetched and duplicate
+  targets are never retried, failed and pending ones are.
+- Schema v2 source frontmatter: `source_type`, `url`, `resolved_from` and,
+  for video sources, `transcript_status`.
+- Optional `source_locator` on claims, a deep link into the source built
+  from a url, page, timestamp or anchor, validated by `extract-verify`.
+- `resynth migrate`: explicit upgrade of a project's sources to schema v2.
+  Bodies and content hashes are untouched, re-sealing stays a separate
+  operator step.
+- `resynth --version`.
+- MASTER.json format `resynth-master/2` with a sources array, plus a
+  `load_master` reader that accepts both `/1` and `/2`.
+- The guided wizard offers source resolution straight after intake.
 - Completion ping: when a delegated AI step runs longer than 90 seconds,
   RESYNTH plays a sound and shows a desktop notification (Windows toast /
   macOS notification) when it finishes, and again when the master document
@@ -20,6 +39,13 @@ All notable changes to RESYNTH are documented here. The format follows
   line with elapsed time and when the project last had a file saved, plus
   the assistant's output streamed as it arrives, instead of a silent prompt
   until completion.
+
+### Changed
+- Default model for the Claude Code operator is now Fable 5
+  (`claude-fable-5`), Anthropic's newest and fastest top-tier model;
+  override per workspace in `operator.yaml` as before.
+- The MASTER.md source register gains Type and Link columns, so every
+  source's kind and origin url are visible in the sealed master.
 
 ### Fixed
 - Sealing failed with "paths are ignored by one of your .gitignore files"

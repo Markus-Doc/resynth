@@ -57,6 +57,51 @@ def test_missing_and_unknown_fields_fail():
     assert any("unknown field extra" in e for e in errors)
 
 
+@pytest.mark.parametrize(
+    "locator",
+    [
+        {"url": "https://example.com/talk"},
+        {"page": 12},
+        {"timestamp": "00:14:32"},
+        {"timestamp": "4:05"},
+        {"anchor": "section-slug"},
+        {"url": "https://example.com/talk", "page": 3, "timestamp": "1:02:03", "anchor": "intro"},
+    ],
+)
+def test_valid_source_locator_accepted(locator):
+    claim = dict(VALID)
+    claim["source_locator"] = locator
+    assert validate_claim(claim, "S01") == []
+
+
+def test_claim_without_locator_still_valid():
+    claim = dict(VALID)
+    assert "source_locator" not in claim
+    assert validate_claim(claim, "S01") == []
+
+
+@pytest.mark.parametrize(
+    "locator,fragment",
+    [
+        ({"chapter": 3}, "unknown source_locator key chapter"),
+        ({}, "at least one of url, page, timestamp, anchor"),
+        ("page 12", "source_locator must be an object"),
+        ({"timestamp": "12m30s"}, "H:MM or HH:MM:SS"),
+        ({"timestamp": "1:2:03"}, "H:MM or HH:MM:SS"),
+        ({"page": 0}, "positive integer"),
+        ({"page": -4}, "positive integer"),
+        ({"page": "12"}, "positive integer"),
+        ({"url": ""}, "source_locator.url"),
+    ],
+)
+def test_bad_source_locator_rejected(locator, fragment):
+    claim = dict(VALID)
+    claim["source_locator"] = locator
+    errors = validate_claim(claim, "S01")
+    assert errors, f"expected violation for source_locator={locator!r}"
+    assert any(fragment in e for e in errors)
+
+
 def test_workspace_generation(ws):
     pdir = make_project()
     run_extract("demo")
@@ -112,3 +157,81 @@ def test_coverage_heuristic_warns(ws, tmp_path):
     result = run_extract_verify("cov")
     assert result["ok"]
     assert any("coverage" in w for w in result["gate"]["warnings"])
+
+
+VIDEO_URL = "https://example.com/talks/argon2"
+
+
+def _video_project(project="vid"):
+    """A project with one handcrafted schema v2 video-transcript source."""
+    from resynth import config
+    from resynth.fsutil import sha256_text
+    from resynth.intake import check_intake_gate
+    from resynth.project import run_init
+
+    run_init(project)
+    pdir = config.project_dir(project)
+    body = "# Argon2 conference talk\n\nThe speaker recommends Argon2id throughout.\n"
+    frontmatter = (
+        "---\n"
+        "source_id: S01\n"
+        "title: Argon2 conference talk\n"
+        "origin: test\n"
+        "author_or_tool: unknown\n"
+        "date_authored: unknown\n"
+        "date_ingested: '2026-06-12'\n"
+        "authority_tier: unknown\n"
+        "recency_rank: 1\n"
+        f"sha256: {sha256_text(body)}\n"
+        "schema_version: 2\n"
+        "source_type: video-transcript\n"
+        f"url: {VIDEO_URL}\n"
+        "resolved_from: null\n"
+        "transcript_status: fetched\n"
+        "---\n"
+    )
+    (pdir / "sources" / "S01-argon2-conference-talk.md").write_text(
+        frontmatter + body, encoding="utf-8"
+    )
+    check_intake_gate(pdir)
+    run_extract(project)
+    return pdir
+
+
+def test_verify_warns_video_claim_without_timestamp(ws):
+    pdir = _video_project()
+    (pdir / "claims" / "S01-claims.jsonl").write_text(
+        json.dumps(VALID) + "\n", encoding="utf-8"
+    )
+    result = run_extract_verify("vid")
+    assert result["ok"]
+    assert any(
+        "S01-C001: video source claim without a timestamp locator" in w
+        for w in result["gate"]["warnings"]
+    )
+
+
+def test_verify_warns_locator_url_mismatch(ws):
+    pdir = _video_project()
+    claim = dict(VALID)
+    claim["source_locator"] = {"timestamp": "00:14:32", "url": "https://elsewhere.example.com"}
+    (pdir / "claims" / "S01-claims.jsonl").write_text(
+        json.dumps(claim) + "\n", encoding="utf-8"
+    )
+    result = run_extract_verify("vid")
+    assert result["ok"]
+    warnings = result["gate"]["warnings"]
+    assert any("S01-C001: locator url does not match the source url" in w for w in warnings)
+    assert not any("without a timestamp" in w for w in warnings)
+
+
+def test_verify_no_url_warning_when_locator_url_matches(ws):
+    pdir = _video_project()
+    claim = dict(VALID)
+    claim["source_locator"] = {"timestamp": "00:14:32", "url": VIDEO_URL}
+    (pdir / "claims" / "S01-claims.jsonl").write_text(
+        json.dumps(claim) + "\n", encoding="utf-8"
+    )
+    result = run_extract_verify("vid")
+    assert result["ok"]
+    assert not any("locator url" in w for w in result["gate"]["warnings"])
