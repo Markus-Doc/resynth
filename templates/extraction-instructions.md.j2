@@ -27,6 +27,13 @@ Every claim line must contain exactly these fields.
 - confidence_as_stated: one of high, medium, low, unstated
 - depends_on: a list of claim ids this claim depends on, empty list if none
 
+One optional field may be added.
+
+- source_locator: a structured pointer to the exact origin, an object with any
+  of url, page (a PDF page number), timestamp (a video HH:MM:SS time), anchor
+  (an HTML heading slug). Add a timestamp for video-transcript sources and a
+  page number for PDF sources.
+
 ## Rules
 
 1. One claim per line. Split compound statements into separate claims.

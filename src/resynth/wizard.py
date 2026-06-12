@@ -30,6 +30,7 @@ from .gates import all_gates
 from .intake import SUPPORTED, run_intake
 from .project import run_brief, run_init
 from .reconcile import run_reconcile
+from .resolve import preview_targets, run_resolve
 from .synthesise import run_synth_verify, run_synthesise
 
 console = Console()
@@ -463,7 +464,40 @@ def _step_intake(project: str) -> bool:
     for event in result["events"]:
         console.print(f"  {event['source']}: {event['action']}")
     _show_reasons(result)
+    if result.get("ok"):
+        _offer_resolve(project)
     return True
+
+
+def _offer_resolve(project: str) -> None:
+    """Offer to fetch links and file references found inside the new sources."""
+    try:
+        targets = preview_targets(project)
+    except ResynthError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+    if not targets:
+        return
+    n = len(targets)
+    if not Confirm.ask(
+        f"I found {n} links and file references inside your reports. "
+        "Fetch them as extra sources now?",
+        default=True,
+    ):
+        return
+    try:
+        resolved = run_resolve(project)
+    except ResynthError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+    for line in resolved["messages"]:
+        console.print(f"  {line}")
+    _show_reasons(resolved)
+    if resolved["counts"]["transcript_pending"] > 0:
+        console.print(
+            "Some videos have no public captions yet. You can paste a transcript\n"
+            "into the stub file, or re-run resolve later to retry."
+        )
 
 
 def _step_operator(

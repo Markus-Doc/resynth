@@ -78,10 +78,46 @@ agent then drives the pipeline below, and the result is one BEST master
 document, readable by humans, verifiable by machine, and exportable as JSON
 for a downstream AI agent to action.
 
+After intake there is one optional extra step. RESYNTH offers to fetch the
+links and file references found inside your reports and register them as
+extra sources, so the things your reports cite become evidence too.
+
 ```
 chat -> brief -> per platform prompts -> research reports -> intake ->
-extract -> reconcile -> synthesise -> audit -> seal -> MASTER.md + MASTER.json
+resolve (optional) -> extract -> reconcile -> synthesise -> audit -> seal ->
+MASTER.md + MASTER.json
 ```
+
+## Fetching linked sources
+
+Research reports cite things. `resynth resolve <project>` follows those
+citations and turns them into first class sources of their own. It scans
+every ingested report for links and file references, fetches each one, and
+registers the result with provenance back to the report that mentioned it.
+It handles html articles, pdf links, local files, and YouTube and Vimeo
+videos. Public video captions become timestamped transcripts.
+
+When a video has no public captions, resolve still creates the source as a
+pending transcript stub. You can paste a transcript into the stub yourself,
+or re-run resolve later to retry. A later successful fetch upgrades the stub
+in place and keeps the same source id.
+
+Resolution is idempotent. Every outcome is recorded in
+`index/resolution.jsonl`, fetched and duplicate targets are never fetched
+twice, and failed or pending targets are retried on the next run. Fetching
+is polite: robots.txt is honoured, requests to the same host are spaced one
+second apart, and responses are capped at 10 MiB. Resolution goes one level
+deep only. Fetched sources are not scanned for further links unless you
+force a re-scan with `--source`.
+
+```
+resynth resolve myproject
+resynth resolve myproject --only youtube    # just targets matching a substring
+resynth resolve myproject --source S03      # re-scan one source, even a fetched one
+```
+
+The full reference, including the manifest format, the source schema and
+the migration guide, lives in [docs/SOURCE-RESOLUTION.md](docs/SOURCE-RESOLUTION.md).
 
 ## Install
 
@@ -135,6 +171,7 @@ scripts/run_demo.py and in the end to end test.
 resynth init <project>            create project skeleton plus default merge-rules.yaml
 resynth brief <project> --topic   capture the research question, generate the prompt workspace
 resynth intake <project> --source <file> ...   stage 1, repeatable per file
+resynth resolve <project>         fetch links and file references inside sources as new first class sources
 resynth extract <project>         stage 2 workspace generation
 resynth extract-verify <project>  stage 2 gate
 resynth reconcile <project>       stage 3, also evaluates the gate
@@ -144,6 +181,7 @@ resynth audit <project>           stage 5 coverage, drift, traceability
 resynth seal <project>            hash everything, commit SEAL.yaml, tag the repo
 resynth export <project>          machine readable output/MASTER.json for agents
 resynth status <project>          gate dashboard
+resynth migrate <project>         upgrade a project's sources to the current schema (v2)
 resynth operator                  show or set the wired AI assistant, model and effort
 resynth doctor                    environment probe
 ```
@@ -172,6 +210,11 @@ Record the confidence the source states, not your own. Reuse topic tags.
 Then run: resynth extract-verify <project> --json and fix every violation
 until the gate reports PASS.
 ```
+
+Each claim may also carry an optional `source_locator`, a deep link into the
+source built from a url, a page number, a timestamp or an anchor. The full
+claim and source schemas live in
+[docs/SOURCE-RESOLUTION.md](docs/SOURCE-RESOLUTION.md).
 
 ### Agent prompt for stage 3, reconciliation
 

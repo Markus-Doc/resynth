@@ -10,13 +10,16 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from . import __version__
 from . import audit as audit_mod
 from . import config
 from . import doctor as doctor_mod
 from . import export as export_mod
 from . import extract as extract_mod
+from . import migrate as migrate_mod
 from . import project as project_mod
 from . import reconcile as reconcile_mod
+from . import resolve as resolve_mod
 from . import synthesise as synth_mod
 from .errors import ResynthError
 from .gates import all_gates
@@ -105,6 +108,7 @@ class _GuardedGroup(click.Group):
 
 
 @click.group(cls=_GuardedGroup, invoke_without_command=True)
+@click.version_option(version=__version__, prog_name="resynth")
 @click.pass_context
 def main(ctx):
     """RESYNTH, research consolidation with systematic review gates.
@@ -149,6 +153,34 @@ def brief(project, topic, as_json, dry_run):
 def intake(project, sources, as_json, dry_run):
     """Stage 1: ingest sources with provenance frontmatter."""
     _run("intake", project, as_json, dry_run, run_intake, project, list(sources), dry_run=dry_run)
+
+
+@main.command()
+@click.argument("project")
+@click.option("--source", "source_ids", multiple=True, help="Scan only these source ids (allows re-scanning resolved sources).")
+@click.option("--only", default=None, help="Only targets containing this substring.")
+@common
+def resolve(project, source_ids, only, as_json, dry_run):
+    """Fetch links and file references inside sources as new first class sources."""
+    _run(
+        "resolve",
+        project,
+        as_json,
+        dry_run,
+        resolve_mod.run_resolve,
+        project,
+        only=only,
+        source_ids=list(source_ids) or None,
+        dry_run=dry_run,
+    )
+
+
+@main.command()
+@click.argument("project")
+@common
+def migrate(project, as_json, dry_run):
+    """Upgrade a project's sources to the current schema (v2). Re-seal is a separate step."""
+    _run("migrate", project, as_json, dry_run, migrate_mod.run_migrate, project, dry_run=dry_run)
 
 
 @main.command()

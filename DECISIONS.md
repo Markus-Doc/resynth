@@ -27,3 +27,9 @@ Every architectural decision with a one line rationale.
 - The wired assistant defaults to Claude Code with claude-opus-4-8 at high reasoning effort, adjustable with resynth operator.
 - Delegated operator steps verify against the stage gate and retry up to three times with the gate reasons fed back, then fall back to manual mode.
 - The brief step asks whether reports already exist and skips prompt generation when they do, consolidation only is a first class flow.
+- resolve is a stage 01 verb that re-evaluates the intake gate, not a sixth gate, so already sealed projects never grow a phantom PENDING gate.
+- Fetchers use only the Python standard library (urllib, html.parser, xml.etree), so the four dependency decision holds.
+- Video transcripts are best effort, a pending stub is a real source that upgrades in place and keeps its source id, so claim ids built on it stay stable.
+- Source schema v2 is adopted only through an explicit resynth migrate, never silently, and re-sealing afterwards stays an operator act.
+- MASTER.json format resynth-master/2 ships together with a load_master reader that accepts both /1 and /2, so downstream consumers never break on old exports.
+- Resolution is depth one by design, fetched sources are not scanned for further links unless the operator forces a re-scan with --source.
