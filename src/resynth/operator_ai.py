@@ -23,7 +23,10 @@ EFFORTS = ["low", "medium", "high"]
 KNOWN_CLIS = {
     "claude": {
         "label": "Claude Code",
-        "default_model": "claude-fable-5",
+        # No pinned model: let the claude CLI use the user's current default
+        # model. Pinning a name breaks the moment that model is retired or
+        # gated. Set "model" in operator.yaml to override.
+        "default_model": None,
         "install_hint": "npm install -g @anthropic-ai/claude-code",
     },
     "codex": {

@@ -7,12 +7,14 @@ def test_defaults_are_high_effort(ws):
     assert cfg["cli"] is None
 
 
-def test_claude_defaults_to_fable_high_effort(ws):
+def test_claude_uses_cli_default_model_high_effort(ws):
     cfg = {"cli": "claude", "model": None, "effort": "high"}
-    assert operator_ai.resolved_model(cfg) == "claude-fable-5"
+    # No model pinned: resynth must not pass --model, so the claude CLI uses
+    # whatever default model the authed session has set.
+    assert operator_ai.resolved_model(cfg) is None
     cmd, env = operator_ai.build_command(cfg, "do the thing")
     assert cmd[0] == "claude" and "-p" in cmd
-    assert "claude-fable-5" in cmd
+    assert "--model" not in cmd
     assert "--permission-mode" in cmd
     assert env.get("MAX_THINKING_TOKENS") == "31999"
     assert any("Reasoning effort: high" in part for part in cmd)
