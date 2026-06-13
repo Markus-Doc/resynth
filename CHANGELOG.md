@@ -6,6 +6,13 @@ All notable changes to RESYNTH are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- The Claude Code operator no longer pins a model name. RESYNTH passes no
+  `--model` flag by default, so the `claude` CLI uses whatever default model
+  the authed session has set. This stops delegated steps from erroring out
+  when a specific model (e.g. Fable 5) is retired or gated. Pin a model per
+  workspace with `model:` in `operator.yaml` if you want one.
+
 ## [0.2.0] - 2026-06-12
 
 ### Added
