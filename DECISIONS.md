@@ -24,7 +24,7 @@ Every architectural decision with a one line rationale.
 - The installer keeps app code under the local app data directory and user projects in a RESYNTH folder in the home directory, so updates never touch user data.
 - The wizard initialises a git repository in the workspace with a local fallback identity at seal time, so sealing works on machines with no git configuration.
 - AI inference is wired in as a pluggable external operator CLI (operator.yaml at the workspace root), the pipeline itself stays AI free and the zero runtime AI guarantee now means zero embedded AI, not zero AI assistance.
-- The wired assistant defaults to Claude Code with claude-opus-4-8 at high reasoning effort, adjustable with resynth operator.
+- The wired assistant defaults to Claude Code at high reasoning effort and pins no model, so delegated steps use whatever default model the authed claude CLI has set and never break when a specific model is retired or gated, override per workspace with resynth operator --model.
 - Delegated operator steps verify against the stage gate and retry up to three times with the gate reasons fed back, then fall back to manual mode.
 - The brief step asks whether reports already exist and skips prompt generation when they do, consolidation only is a first class flow.
 - resolve is a stage 01 verb that re-evaluates the intake gate, not a sixth gate, so already sealed projects never grow a phantom PENDING gate.
