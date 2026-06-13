@@ -43,8 +43,10 @@ The guided mode walks you through everything, one step at a time:
 
 1. On first run RESYNTH detects AI assistant CLIs on your machine (Claude
    Code, Codex, Gemini) and offers to wire one in. With an assistant wired
-   in, every thinking step can be done for you automatically. Adjust the
-   wiring any time: `resynth operator --use claude --model claude-opus-4-8 --effort high`
+   in, every thinking step can be done for you automatically. By default no
+   model is pinned, so steps use whatever default model your `claude` CLI is
+   set to. Adjust the wiring any time, including pinning a model:
+   `resynth operator --use claude --model claude-opus-4-8 --effort high`
 2. Name your project and describe what you want researched, in one sentence.
 3. Already have your research reports? Say yes when asked and RESYNTH skips
    straight to loading them. Otherwise it creates one tailored research
