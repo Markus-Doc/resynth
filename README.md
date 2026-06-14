@@ -186,7 +186,16 @@ resynth status <project>          gate dashboard
 resynth migrate <project>         upgrade a project's sources to the current schema (v2)
 resynth operator                  show or set the wired AI assistant, model and effort
 resynth doctor                    environment probe
+resynth update                    check GitHub and fast-forward the install in place
 ```
+
+`resynth update` fast-forwards the git install (the one the installer sets
+up) to the latest release. Only changed and new files are rewritten, and the
+editable install means the new code is live without re-patching; a dependency
+reinstall happens only when `pyproject.toml` changed. Use `--check` to look
+without applying, `--yes` to skip the prompt. The guided mode also checks at
+most once a day on launch and, when a newer version exists, pings the desktop
+and offers to update before you start.
 
 Every command supports --dry-run and --json and writes a run log under
 runs/. Exit code is 0 only on success.

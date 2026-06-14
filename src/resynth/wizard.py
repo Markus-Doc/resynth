@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from . import config, operator_ai
+from . import config, operator_ai, updater
 from .audit import run_audit, run_seal
 from .errors import ResynthError
 from .export import run_export
@@ -316,6 +316,48 @@ def _notify(body: str) -> None:
                 )
         else:
             console.bell()
+    except Exception:
+        pass
+
+
+def _check_for_update() -> None:
+    """Throttled, best effort update nudge at launch. Never blocks or raises.
+
+    The network probe runs at most once a day. When a newer revision is on
+    GitHub, RESYNTH pings the desktop and offers to fast-forward in place
+    (only changed files are rewritten), then carries on either way.
+    """
+    try:
+        from . import __version__
+
+        status = updater.check(throttle=True)
+        if not status.get("available"):
+            return
+        _notify("A new version of RESYNTH is available. Open RESYNTH to update.")
+        commits = updater.incoming_commits(updater.app_root())
+        lines = [
+            "A newer RESYNTH is ready to install.",
+            "",
+            f"  installed   [yellow]{status['current_short']}[/yellow]  (v{__version__})",
+            f"  available   [green]{status['latest_short']}[/green]",
+        ]
+        if commits:
+            lines += ["", "[bold]What's new[/bold]"]
+            lines += [f"  • {c}" for c in commits[:6]]
+        console.print(Panel("\n".join(lines), title="✨ Update available", border_style="cyan"))
+        if not Confirm.ask("Update now? (only changed files are fetched)", default=True):
+            console.print("[dim]Skipped. Run [cyan]resynth update[/cyan] any time.[/dim]\n")
+            return
+        result = updater.apply()
+        if result.get("ok") and result.get("updated"):
+            n = len(result["changed_files"])
+            console.print(
+                f"[green]Updated[/green] {result['old_short']} → {result['new_short']} "
+                f"({n} file{'s' if n != 1 else ''} changed). "
+                "The new version takes effect next time you launch RESYNTH.\n"
+            )
+        elif not result.get("ok"):
+            console.print(f"[yellow]Update could not complete: {result.get('error')}[/yellow]\n")
     except Exception:
         pass
 
@@ -644,6 +686,7 @@ def run_wizard() -> int:
             border_style="cyan",
         )
     )
+    _check_for_update()
     root = _ensure_workspace()
     ai_cfg = _setup_operator(root)
     try:

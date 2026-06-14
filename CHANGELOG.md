@@ -6,6 +6,17 @@ All notable changes to RESYNTH are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Self update (`resynth update`): checks GitHub and fast-forwards the git
+  install in place. The fast-forward rewrites only the files that changed,
+  and because the install is editable the new code is live with no
+  re-patch; a dependency reinstall runs only when `pyproject.toml` moved.
+  `--check` reports without applying, `--yes` skips the prompt.
+- Launch-time update nudge in guided mode: a throttled (once a day),
+  best-effort check that, when a newer version exists, plays the desktop
+  toast and offers to update before the session starts. Never blocks or
+  fails a launch on a bad network.
+
 ## [0.2.1] - 2026-06-13
 
 ### Fixed
