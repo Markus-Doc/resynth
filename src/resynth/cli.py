@@ -21,6 +21,7 @@ from . import project as project_mod
 from . import reconcile as reconcile_mod
 from . import resolve as resolve_mod
 from . import synthesise as synth_mod
+from . import updater as updater_mod
 from .errors import ResynthError
 from .gates import all_gates
 from .intake import run_intake
@@ -336,6 +337,75 @@ def doctor(as_json, dry_run):
         return result
 
     _run("doctor", None, as_json, dry_run, _doctor)
+
+
+@main.command()
+@click.option("--check", "check_only", is_flag=True, help="Only report whether an update exists.")
+@click.option("--yes", "assume_yes", is_flag=True, help="Apply without asking.")
+@common
+def update(check_only, assume_yes, as_json, dry_run):
+    """Check GitHub for a newer RESYNTH and fast-forward this install."""
+    from rich.panel import Panel
+    from rich.prompt import Confirm
+
+    def _update():
+        root = updater_mod.app_root()
+        status = updater_mod.check(throttle=False)
+        if not status.get("supported"):
+            msg = "Self update only works for the git install (the one the installer sets up)."
+            if not as_json:
+                console.print(f"[yellow]{msg}[/yellow]")
+            return {"ok": True, "supported": False, "messages": []}
+        if status.get("error") and not status.get("current"):
+            return {"ok": False, "error": status["error"], "messages": []}
+        if not status.get("available"):
+            cur = status.get("current_short", __version__)
+            if not as_json:
+                console.print(f"[green]RESYNTH is up to date[/green] (v{__version__}, {cur}).")
+            return {"ok": True, "available": False, **status, "messages": []}
+
+        commits = updater_mod.incoming_commits(root) if not as_json else []
+        if not as_json:
+            lines = [
+                f"A newer RESYNTH is available.",
+                "",
+                f"  installed   [yellow]{status['current_short']}[/yellow]  (v{__version__})",
+                f"  available   [green]{status['latest_short']}[/green]",
+            ]
+            if commits:
+                lines += ["", "[bold]What's new[/bold]"]
+                lines += [f"  • {c}" for c in commits]
+            console.print(Panel("\n".join(lines), title="✨ Update available", border_style="cyan"))
+
+        if check_only or dry_run:
+            return {"ok": True, "available": True, **status, "messages": []}
+        if not assume_yes and not as_json:
+            if not Confirm.ask("Update now?", default=True):
+                return {"ok": True, "available": True, "applied": False, "messages": []}
+
+        result = updater_mod.apply()
+        if not result.get("ok"):
+            return {"ok": False, "error": result.get("error", "update failed"), "messages": []}
+        if not result.get("updated"):
+            return {"ok": True, "applied": False, "messages": ["already up to date"]}
+        if not as_json:
+            n = len(result["changed_files"])
+            console.print(
+                f"[green]Updated[/green] {result['old_short']} → {result['new_short']} "
+                f"({n} file{'s' if n != 1 else ''} changed)."
+            )
+            if result.get("deps_changed"):
+                ok = result.get("deps_reinstalled")
+                console.print(
+                    "[green]Dependencies reinstalled.[/green]"
+                    if ok
+                    else "[yellow]Dependencies changed but reinstall failed; "
+                    "run the installer to repair.[/yellow]"
+                )
+            console.print("Restart RESYNTH to run the new version.")
+        return {"ok": True, "applied": True, **result, "messages": []}
+
+    _run("update", None, as_json, dry_run, _update)
 
 
 if __name__ == "__main__":
