@@ -1,5 +1,9 @@
 # RESYNTH
 
+## Ownership and third-party rights
+
+RESYNTH is an original project by M. Walker. The MIT License covers original code, documentation, pipeline design, and methodology. Dependencies, research standards, and user-supplied source documents retain their own rights and terms. See [NOTICE.md](NOTICE.md).
+
 [![CI](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml/badge.svg)](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
