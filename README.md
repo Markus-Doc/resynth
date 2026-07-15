@@ -77,6 +77,17 @@ RESYNTH still enforces deterministic gates and does not fabricate missing
 research reports. A request mentioning Fable uses Claude Fable 5 for that one
 task only and never saves it as the workspace policy.
 
+While guided mode is running, a second terminal (or a supervising agent) can
+interrupt its current AI task and steer it naturally:
+
+```
+resynth control <project> "stop after this stage and focus on unresolved conflicts"
+```
+
+The task is stopped safely, its output is retained, and the instruction is
+recorded in the project's control log. Controls are session-only and cannot
+bypass evidence rules, passing gates, or the seal confirmation.
+
 Everything below this point is detail for operators and developers.
 
 ## The intended workflow
@@ -193,6 +204,7 @@ resynth export <project>          machine readable output/MASTER.json for agents
 resynth status <project>          gate dashboard
 resynth migrate <project>         upgrade a project's sources to the current schema (v2)
 resynth operator                  show or set staged AI routes, models and effort
+resynth control <project> <text>  steer an active guided AI session
 resynth doctor                    environment probe
 resynth update                    check GitHub and fast-forward the install in place
 ```

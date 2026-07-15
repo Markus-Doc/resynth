@@ -24,7 +24,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from . import config, operator_ai, updater
+from . import config, control as control_mod, operator_ai, updater
 from .audit import run_audit, run_seal
 from .errors import ResynthError
 from .export import run_export
@@ -45,6 +45,14 @@ class SessionControl:
 
     automatic: bool = False
     next_instruction: str = ""
+    session: str = ""
+    consumed: set[str] = None
+    interrupted: dict | None = None
+    stopped: bool = False
+
+    def __post_init__(self):
+        if self.consumed is None:
+            self.consumed = set()
 
 
 def _ai_choice(question: str, control: SessionControl) -> bool:
@@ -72,6 +80,27 @@ def _ai_choice(question: str, control: SessionControl) -> bool:
             "the saved routing policy is unchanged.[/yellow]"
         )
     return True
+
+
+def _apply_directive(project: str, control: SessionControl, directive: dict) -> str:
+    """Interpret only safe session controls; all other text guides the author."""
+    text = directive["directive"].strip()
+    lowered = text.lower()
+    if lowered in {"stop", "stop now", "pause", "pause now"}:
+        control.stopped = True
+        control_mod.log_action(project, control.session, directive, "stop")
+        return "stop"
+    if "auto" in lowered and any(word in lowered for word in ("run", "continue", "automatic", "auto")):
+        control.automatic = True
+        control_mod.log_action(project, control.session, directive, "automatic")
+    else:
+        control_mod.log_action(project, control.session, directive, "guidance")
+    control.next_instruction = text
+    return "guide"
+
+
+def _queued_directive(project: str, control: SessionControl) -> dict | None:
+    return control_mod.next_directive(project, control.session, control.consumed)
 
 DELEGATED_PROMPTS = {
     "prompts": (
@@ -405,7 +434,8 @@ def _last_save_note(pdir: Path, started: float) -> str:
     return f", last file saved {ago}s ago"
 
 
-def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mode: str = "write") -> operator_ai.TaskResult:
+def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mode: str = "write",
+                       control: SessionControl | None = None, project: str | None = None) -> operator_ai.TaskResult:
     """Run one delegated task with a live elapsed/activity status line."""
     label = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {}).get("label", ai_cfg["cli"])
     started = time.time()
@@ -424,8 +454,16 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mod
         ticker = threading.Thread(target=tick, daemon=True)
         ticker.start()
         try:
+            def should_stop():
+                if not control or not project:
+                    return None
+                directive = _queued_directive(project, control)
+                if directive:
+                    control.interrupted = directive
+                return directive
             rc = operator_ai.run_task(
-                ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]"), mode=mode
+                ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]"), mode=mode,
+                should_stop=should_stop if control else None,
             )
         finally:
             stop.set()
@@ -436,7 +474,7 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mod
 
 
 def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str],
-              instruction: str = "") -> bool:
+              instruction: str = "", control: SessionControl | None = None) -> str:
     """Run one operator task through the configured AI CLI. True on rc 0."""
     prompt = DELEGATED_PROMPTS[key].format(project=project)
     if feedback:
@@ -456,7 +494,13 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
         f"effort {ai_cfg.get('effort', 'high')})...[/cyan]\n"
     )
-    result = _run_with_progress(ai_cfg, prompt, root, config.project_dir(project))
+    result = _run_with_progress(ai_cfg, prompt, root, config.project_dir(project), control=control, project=project)
+    if result.interrupted:
+        directive = control.interrupted if control else None
+        if directive:
+            action = _apply_directive(project, control, directive)
+            console.print(f"[yellow]AI task interrupted for operator directive: {directive['directive']}[/yellow]")
+            return "stopped" if action == "stop" else "interrupted"
     # Claude's context exhaustion is the single automatic failover: same effort,
     # workspace-write Codex, and no further chaining if that fails.
     if ai_cfg.get("cli") == "claude" and operator_ai.is_context_exhaustion(result.output):
@@ -467,7 +511,13 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
                 f"[yellow]Claude {operator_ai.resolved_model(ai_cfg) or 'default'} exhausted its context window. "
                 f"Switching to Codex {fallback['model']} at {fallback['effort']} effort.[/yellow]"
             )
-            result = _run_with_progress(fallback, prompt, root, config.project_dir(project))
+            result = _run_with_progress(fallback, prompt, root, config.project_dir(project), control=control, project=project)
+    if result.interrupted:
+        directive = control.interrupted if control else None
+        if directive:
+            action = _apply_directive(project, control, directive)
+            console.print(f"[yellow]AI task interrupted for operator directive: {directive['directive']}[/yellow]")
+            return "stopped" if action == "stop" else "interrupted"
     rc = result.exit_code
     if rc == 127:
         known = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {})
@@ -484,7 +534,7 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
         _panel("Your AI assistant could not be launched", body)
     elif rc != 0:
         console.print(f"[red]{ai_cfg['cli']} exited with code {rc}.[/red]")
-    return rc == 0
+    return "ok" if rc == 0 else "failed"
 
 
 def _author_route(profile: dict, stage: str, role: str = "author") -> dict:
@@ -493,13 +543,18 @@ def _author_route(profile: dict, stage: str, role: str = "author") -> dict:
     return route
 
 
-def _review(project: str, root: Path, profile: dict, stage: str, previous: dict | None = None) -> dict | None:
+def _review(project: str, root: Path, profile: dict, stage: str, previous: dict | None = None,
+            control: SessionControl | None = None) -> dict | None:
     """Run an advisory, read-only review and persist its structured report."""
     route = _author_route(profile, "review", "review")
     prompt = f"""You are an independent quality reviewer for a RESYNTH project. Review the completed {stage} stage in projects/{project}. Do not edit files. Assess artifact quality only; do not claim to verify source truth. Return ONLY JSON with keys overall (0-100), dimensions (evidence_fidelity, coverage, provenance, decision_prose_correctness; each 0-100), concerns (array of objects with artifact, claim_ids, concern), and limitation. Anchor concerns to artifact paths and claim IDs where possible."""
     if previous:
         prompt += "\nPrevious review follows. Compare improvements and remaining risks:\n" + yaml.safe_dump(previous)
-    result = _run_with_progress(route, prompt, root, config.project_dir(project), mode="review")
+    result = _run_with_progress(route, prompt, root, config.project_dir(project), mode="review", control=control, project=project)
+    if result.interrupted and control and control.interrupted:
+        _apply_directive(project, control, control.interrupted)
+        console.print("[yellow]Review interrupted for an operator directive.[/yellow]")
+        return None
     if result.exit_code:
         console.print("[yellow]Optional AI review could not run. The deterministic gate still passed; you may continue or review manually.[/yellow]")
         return None
@@ -523,6 +578,15 @@ def _review(project: str, root: Path, profile: dict, stage: str, previous: dict 
 
 def _review_choice(project: str, root: Path, profile: dict, stage: str, previous: dict | None,
                    control: SessionControl) -> str:
+    if control.stopped:
+        return "stop"
+    material = previous is not None and (
+        previous.get("overall", 100) < 75
+        or any(c.get("artifact") or c.get("claim_ids") for c in previous.get("concerns", []) if isinstance(c, dict))
+    )
+    if control.automatic and material:
+        control.automatic = False
+        console.print("[yellow]Automatic mode paused: the review identified a material artifact or claim risk.[/yellow]")
     if control.automatic:
         console.print("[dim]Automatic mode: recorded the advisory review and advancing on the passing deterministic gate.[/dim]")
         return "accept"
@@ -547,7 +611,7 @@ def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict, control: Ses
     if route.get("cli") and _ai_choice(
         f"Let {route['cli']} write the platform research prompts for you now?", control
     ):
-        delegated = _delegate(project, root, route, "prompts", [], control.next_instruction)
+        delegated = _delegate(project, root, route, "prompts", [], control.next_instruction, control) == "ok"
         control.next_instruction = ""
     if delegated:
         _panel(
@@ -656,14 +720,19 @@ def _step_operator(
     if route.get("cli") and _ai_choice(f"Let {route['cli']} do this step for you now?", control):
         feedback: list[str] = []
         for attempt in range(1, 4):
-            if not _delegate(project, root, route, key, feedback, control.next_instruction):
+            outcome = _delegate(project, root, route, key, feedback, control.next_instruction, control)
+            if outcome == "stopped":
+                return False
+            if outcome == "interrupted":
+                continue
+            if outcome != "ok":
                 break
             control.next_instruction = ""
             result = verify()
             if result["ok"]:
                 prior = None
                 while True:
-                    review = _review(project, root, ai_cfg, key, prior)
+                    review = _review(project, root, ai_cfg, key, prior, control)
                     decision = _review_choice(project, root, ai_cfg, key, review, control)
                     if decision == "accept":
                         console.print("[green]Gate PASS, moving on.[/green]")
@@ -679,7 +748,7 @@ def _step_operator(
                         console.print("[yellow]No stronger route is configured for this stage.[/yellow]")
                         break
                     feedback = [str(c.get("concern", c)) for c in review.get("concerns", [])] if review else []
-                    _delegate(project, root, route, key, feedback)
+                    _delegate(project, root, route, key, feedback, control=control)
                     result = verify()
                     if not result["ok"]:
                         _show_reasons(result); break
@@ -706,8 +775,9 @@ def _step_operator(
 
 def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
     pdir = config.project_dir(project)
-    control = SessionControl()
-    while True:
+    control = SessionControl(session=control_mod.start_session(project))
+    try:
+      while True:
         state = project_state(pdir)
         if state == "brief":
             if not _step_brief(project, pdir, root, ai_cfg, control):
@@ -785,6 +855,8 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
         else:
             _finish(project, pdir)
             return
+    finally:
+        control_mod.finish_session(project, control.session)
 
 
 def _finish(project: str, pdir: Path) -> None:

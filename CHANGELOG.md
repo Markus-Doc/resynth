@@ -7,6 +7,11 @@ All notable changes to RESYNTH are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Interruptible guided-session control: `resynth control <project> "<directive>"`
+  queues natural-language guidance from a second terminal or supervising agent.
+  Active AI tasks poll the queue, stop safely, preserve their output, and rerun
+  under the session-only direction. All control decisions are recorded in the
+  project's control log; deterministic gates and sealing safeguards remain in force.
 - Guided AI handoffs accept a free-text instruction or `auto`, which runs the
   remaining delegable stages in the current session. A Fable request is an
   explicit one-task Claude Fable 5 override and is never persisted as policy.

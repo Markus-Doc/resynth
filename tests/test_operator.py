@@ -151,6 +151,31 @@ def test_run_task_streaming_returns_127_on_spawn_failure(ws, monkeypatch, tmp_pa
     assert operator_ai.run_task(cfg, "task", tmp_path, on_line=lambda ln: None) == 127
 
 
+def test_run_task_interrupts_when_control_arrives(ws, monkeypatch, tmp_path):
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/claude")
+
+    class FakeProc:
+        def __init__(self):
+            self.stdout = iter(["partial output\n"])
+            self.killed = False
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout=None):
+            return 130 if self.killed else 0
+
+        def kill(self):
+            self.killed = True
+
+    proc = FakeProc()
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: proc)
+    cfg = {"cli": "claude", "model": None, "effort": "high"}
+    result = operator_ai.run_task(cfg, "task", tmp_path, on_line=lambda ln: None,
+                                  should_stop=lambda: {"directive": "stop"})
+    assert result.interrupted and proc.killed
+
+
 def test_run_task_returns_127_when_cli_missing(ws, monkeypatch, tmp_path):
     monkeypatch.setattr("shutil.which", lambda name: None)
     cfg = {"cli": "claude", "model": None, "effort": "high"}
