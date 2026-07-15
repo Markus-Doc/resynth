@@ -13,6 +13,7 @@ from rich.table import Table
 from . import __version__
 from . import audit as audit_mod
 from . import config
+from . import control as control_mod
 from . import doctor as doctor_mod
 from . import export as export_mod
 from . import extract as extract_mod
@@ -269,6 +270,22 @@ def status(project, as_json, dry_run):
         return {"ok": True, "project": project, "gates": gates, "messages": []}
 
     _run("status", project, as_json, dry_run, _status)
+
+
+@main.command()
+@click.argument("project")
+@click.argument("directive")
+@common
+def control(project, directive, as_json, dry_run):
+    """Queue a natural-language directive for an active guided session."""
+    def _control():
+        if dry_run:
+            return {"ok": True, "project": project, "directive": directive, "queued": False,
+                    "messages": ["dry run: directive was not queued"]}
+        event = control_mod.queue(project, directive)
+        return {"ok": True, "project": project, "queued": True, "event": event,
+                "messages": ["directive queued for the active guided session"]}
+    _run("control", project, as_json, dry_run, _control)
 
 
 @main.command()

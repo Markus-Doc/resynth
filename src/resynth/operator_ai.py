@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 import os
 import shutil
 import subprocess
+import queue
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,7 @@ class TaskResult:
     exit_code: int
     output: str = ""
     command: tuple[str, ...] = ()
+    interrupted: bool = False
 
     def __eq__(self, other: object) -> bool:
         return self.exit_code == other if isinstance(other, int) else super().__eq__(other)
@@ -193,7 +196,8 @@ def is_context_exhaustion(output: str) -> bool:
     ))
 
 
-def run_task(cfg: dict, prompt: str, cwd: Path, on_line=None, *, mode: str = "write") -> TaskResult:
+def run_task(cfg: dict, prompt: str, cwd: Path, on_line=None, *, mode: str = "write",
+             should_stop=None) -> TaskResult:
     """Run an external CLI and return its exit status and complete captured output."""
     exe = shutil.which(cfg["cli"])
     if not exe:
@@ -224,20 +228,49 @@ def run_task(cfg: dict, prompt: str, cwd: Path, on_line=None, *, mode: str = "wr
     except OSError:
         return TaskResult(127, command=tuple(cmd))
     lines: list[str] = []
+    interrupted = False
     try:
         if via_stdin:
             proc.stdin.write(prompt)
             proc.stdin.close()
-        for line in proc.stdout:
-            line = line.rstrip("\n")
-            lines.append(line)
-            if on_line:
+        if should_stop is None:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                lines.append(line)
                 on_line(line)
-        rc = proc.wait(timeout=1800)
+            rc = proc.wait(timeout=1800)
+        else:
+            output: queue.Queue[str | None] = queue.Queue()
+            def read_output():
+                for line in proc.stdout:
+                    output.put(line)
+                output.put(None)
+            reader = threading.Thread(target=read_output, daemon=True)
+            reader.start()
+            eof = False
+            while not eof:
+                directive = should_stop()
+                if directive is not None:
+                    proc.kill()
+                    interrupted = True
+                    break
+                try:
+                    line = output.get(timeout=0.2)
+                except queue.Empty:
+                    if proc.poll() is not None:
+                        eof = True
+                    continue
+                if line is None:
+                    eof = True
+                else:
+                    line = line.rstrip("\n")
+                    lines.append(line)
+                    on_line(line)
+            rc = proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
         proc.kill(); rc = 124
     except KeyboardInterrupt:
         proc.kill(); rc = 130
     except OSError:
         proc.kill(); rc = 124
-    return TaskResult(rc, "\n".join(lines), tuple(cmd))
+    return TaskResult(rc, "\n".join(lines), tuple(cmd), interrupted)

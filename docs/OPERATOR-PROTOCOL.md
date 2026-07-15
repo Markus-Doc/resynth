@@ -30,6 +30,21 @@ deterministic gates and does not bypass source intake, manual-file fallback or
 the final sealing confirmation. A custom Fable request uses `claude-fable-5`
 for that task only; it does not alter `operator.yaml`.
 
+## Interrupting an active guided task
+
+From a second terminal or an orchestration agent, use:
+
+```
+resynth control <project> "your natural-language direction"
+```
+
+The active guided session polls this local queue, interrupts the running AI
+task, keeps its streamed output, logs the directive and its interpretation in
+`index/control-log.jsonl`, and reruns the task under the new session-only
+guidance. `stop`/`pause` halt the guided run. General instructions are supplied
+to the operator model but are declined where they conflict with evidence,
+provenance, gate, or sealing rules.
+
 ## The two pass discipline
 
 The single most important rule. Synthesis happens in two passes and never
