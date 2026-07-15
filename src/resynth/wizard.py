@@ -16,6 +16,8 @@ import threading
 import time
 from pathlib import Path
 
+import yaml
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -208,8 +210,6 @@ def _ensure_git(root: Path) -> None:
 def _setup_operator(root: Path) -> dict:
     """Load or first-time configure the AI operator wiring."""
     cfg = operator_ai.load()
-    if cfg.get("cli"):
-        return cfg
     if operator_ai.config_path().is_file():
         return cfg
     found = operator_ai.detect()
@@ -219,19 +219,15 @@ def _setup_operator(root: Path) -> dict:
         if Confirm.ask(
             f"Use [cyan]{found[0]}[/cyan] to do the AI work automatically?", default=True
         ):
-            cfg["cli"] = found[0]
+            for stage in operator_ai.STAGES:
+                cfg["routes"][stage]["author"]["cli"] = found[0]
         elif len(found) > 1:
             choice = Prompt.ask("Which one?", choices=found + ["none"], default="none")
             if choice != "none":
-                cfg["cli"] = choice
-        operator_ai.save(cfg)
-        if cfg.get("cli"):
-            console.print(
-                f"Wired in [cyan]{cfg['cli']}[/cyan] with model "
-                f"[cyan]{operator_ai.resolved_model(cfg) or 'default'}[/cyan] and "
-                f"[cyan]{cfg['effort']}[/cyan] reasoning effort. "
-                "Adjust any time with: resynth operator --use ... --model ... --effort ..."
-            )
+                for stage in operator_ai.STAGES:
+                    cfg["routes"][stage]["author"]["cli"] = choice
+        operator_ai.save(cfg, legacy=False)
+        console.print("Configured staged AI routes. Adjust them with: resynth operator --stage ...")
     else:
         hints = "\n".join(
             f"  {v['label']}: {v['install_hint']}" for v in operator_ai.KNOWN_CLIS.values()
@@ -242,7 +238,7 @@ def _setup_operator(root: Path) -> dict:
             "on your machine. None was found, so I will guide you manually.\n\n"
             f"To wire one in later, install one of these and re-run RESYNTH:\n{hints}",
         )
-        operator_ai.save(cfg)
+        operator_ai.save(cfg, legacy=False)
     return cfg
 
 
@@ -373,7 +369,7 @@ def _last_save_note(pdir: Path, started: float) -> str:
     return f", last file saved {ago}s ago"
 
 
-def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path) -> int:
+def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mode: str = "write") -> operator_ai.TaskResult:
     """Run one delegated task with a live elapsed/activity status line."""
     label = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {}).get("label", ai_cfg["cli"])
     started = time.time()
@@ -393,7 +389,7 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path) -> int
         ticker.start()
         try:
             rc = operator_ai.run_task(
-                ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]")
+                ai_cfg, prompt, root, on_line=lambda ln: console.print(f"[dim]{ln}[/dim]"), mode=mode
             )
         finally:
             stop.set()
@@ -416,7 +412,19 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
         f"effort {ai_cfg.get('effort', 'high')})...[/cyan]\n"
     )
-    rc = _run_with_progress(ai_cfg, prompt, root, config.project_dir(project))
+    result = _run_with_progress(ai_cfg, prompt, root, config.project_dir(project))
+    # Claude's context exhaustion is the single automatic failover: same effort,
+    # workspace-write Codex, and no further chaining if that fails.
+    if ai_cfg.get("cli") == "claude" and operator_ai.is_context_exhaustion(result.output):
+        fallback = operator_ai.route_for(ai_cfg.get("_profile", {}), "fallback", "fallback") if ai_cfg.get("_profile") else None
+        if fallback:
+            fallback["effort"] = ai_cfg.get("effort", "high")
+            console.print(
+                f"[yellow]Claude {operator_ai.resolved_model(ai_cfg) or 'default'} exhausted its context window. "
+                f"Switching to Codex {fallback['model']} at {fallback['effort']} effort.[/yellow]"
+            )
+            result = _run_with_progress(fallback, prompt, root, config.project_dir(project))
+    rc = result.exit_code
     if rc == 127:
         known = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {})
         label = known.get("label", ai_cfg["cli"])
@@ -435,6 +443,46 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
     return rc == 0
 
 
+def _author_route(profile: dict, stage: str, role: str = "author") -> dict:
+    route = operator_ai.route_for(profile, stage, role)
+    route["_profile"] = profile
+    return route
+
+
+def _review(project: str, root: Path, profile: dict, stage: str, previous: dict | None = None) -> dict | None:
+    """Run an advisory, read-only review and persist its structured report."""
+    route = _author_route(profile, "review", "review")
+    prompt = f"""You are an independent quality reviewer for a RESYNTH project. Review the completed {stage} stage in projects/{project}. Do not edit files. Assess artifact quality only; do not claim to verify source truth. Return ONLY JSON with keys overall (0-100), dimensions (evidence_fidelity, coverage, provenance, decision_prose_correctness; each 0-100), concerns (array of objects with artifact, claim_ids, concern), and limitation. Anchor concerns to artifact paths and claim IDs where possible."""
+    if previous:
+        prompt += "\nPrevious review follows. Compare improvements and remaining risks:\n" + yaml.safe_dump(previous)
+    result = _run_with_progress(route, prompt, root, config.project_dir(project), mode="review")
+    if result.exit_code:
+        console.print("[yellow]Optional AI review could not run. The deterministic gate still passed; you may continue or review manually.[/yellow]")
+        return None
+    try:
+        text = result.output.strip()
+        if "```" in text:
+            text = text.split("```", 2)[1].replace("json", "", 1).strip()
+        report = yaml.safe_load(text)
+        if not isinstance(report, dict) or "overall" not in report:
+            raise ValueError("missing review fields")
+    except Exception:
+        console.print("[yellow]Optional AI review returned no usable structured report; continue or review manually.[/yellow]")
+        return None
+    report.update({"stage": stage, "reviewer": route, "disclaimer": "AI quality assessment only; it does not verify source truth."})
+    review_dir = config.project_dir(project) / "reviews"
+    review_dir.mkdir(exist_ok=True)
+    (review_dir / f"{stage}-review.yaml").write_text(yaml.safe_dump(report, sort_keys=False), encoding="utf-8")
+    console.print(Panel(yaml.safe_dump(report, sort_keys=False), title="Independent AI quality review", border_style="yellow"))
+    return report
+
+
+def _review_choice(project: str, root: Path, profile: dict, stage: str, previous: dict | None) -> str:
+    if previous is None:
+        return "accept" if Confirm.ask("Continue after the optional review?", default=True) else "manual"
+    return Prompt.ask("Review decision", choices=["accept", "rerun", "manual", "stop"], default="accept")
+
+
 def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
     topic = Prompt.ask("\nWhat do you want researched? Describe it in one sentence")
     if not topic.strip():
@@ -447,11 +495,12 @@ def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
         return True
     prompts_file = pdir / "prompts" / "RESEARCH-PROMPTS.md"
     delegated = False
-    if ai_cfg.get("cli") and Confirm.ask(
-        f"Let {ai_cfg['cli']} write the platform research prompts for you now?",
+    route = _author_route(ai_cfg, "prompts")
+    if route.get("cli") and Confirm.ask(
+        f"Let {route['cli']} write the platform research prompts for you now?",
         default=True,
     ):
-        delegated = _delegate(project, root, ai_cfg, "prompts", [])
+        delegated = _delegate(project, root, route, "prompts", [])
     if delegated:
         _panel(
             "Step 1 of 6: research prompts",
@@ -554,17 +603,39 @@ def _step_operator(
     verify,
 ) -> bool:
     _panel(title, body)
-    if ai_cfg.get("cli") and Confirm.ask(
-        f"Let {ai_cfg['cli']} do this step for you now?", default=True
+    route = _author_route(ai_cfg, key)
+    if route.get("cli") and Confirm.ask(
+        f"Let {route['cli']} do this step for you now?", default=True
     ):
         feedback: list[str] = []
         for attempt in range(1, 4):
-            if not _delegate(project, root, ai_cfg, key, feedback):
+            if not _delegate(project, root, route, key, feedback):
                 break
             result = verify()
             if result["ok"]:
-                console.print("[green]Gate PASS, moving on.[/green]")
-                return True
+                prior = None
+                while True:
+                    review = _review(project, root, ai_cfg, key, prior)
+                    decision = _review_choice(project, root, ai_cfg, key, review)
+                    if decision == "accept":
+                        console.print("[green]Gate PASS, moving on.[/green]")
+                        return True
+                    if decision == "stop":
+                        return False
+                    if decision == "manual":
+                        break
+                    # Explicit escalation only. Its concerns become author feedback.
+                    try:
+                        route = _author_route(ai_cfg, key, "escalation")
+                    except ValueError:
+                        console.print("[yellow]No stronger route is configured for this stage.[/yellow]")
+                        break
+                    feedback = [str(c.get("concern", c)) for c in review.get("concerns", [])] if review else []
+                    _delegate(project, root, route, key, feedback)
+                    result = verify()
+                    if not result["ok"]:
+                        _show_reasons(result); break
+                    prior = review
             feedback = result.get("gate", {}).get("reasons", [])
             _show_reasons(result)
             if attempt < 3:

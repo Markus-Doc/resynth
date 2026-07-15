@@ -272,42 +272,52 @@ def status(project, as_json, dry_run):
 
 
 @main.command()
-@click.option("--use", "use_cli", default=None, help="AI CLI to wire in (claude, codex, gemini, or a path).")
+@click.option("--stage", type=click.Choice(["prompts", "extract", "reconcile", "synthesise", "fallback", "review"]), default=None, help="Route stage to change.")
+@click.option("--role", type=click.Choice(["author", "escalation", "fallback", "review"]), default="author", help="Route role to change.")
+@click.option("--use", "use_cli", default=None, help="AI CLI for the selected route.")
 @click.option("--model", default=None, help="Model override, for example claude-opus-4-8.")
-@click.option("--effort", default=None, type=click.Choice(["low", "medium", "high"]), help="Reasoning effort.")
-@click.option("--clear", is_flag=True, help="Remove the AI operator wiring.")
+@click.option("--effort", default=None, type=click.Choice(["low", "medium", "high", "xhigh"]), help="Reasoning effort.")
+@click.option("--reset", is_flag=True, help="Restore the shipped staged routing policy.")
+@click.option("--clear", is_flag=True, help="Clear the selected route's CLI (legacy alias).")
 @common
-def operator(use_cli, model, effort, clear, as_json, dry_run):
-    """Show or set which AI assistant does the operator work."""
+def operator(stage, role, use_cli, model, effort, reset, clear, as_json, dry_run):
+    """Show or change versioned per-stage AI routes."""
     from . import operator_ai
 
     def _operator():
         cfg = operator_ai.load()
-        changed = False
-        if clear:
-            cfg = dict(operator_ai.DEFAULTS)
-            changed = True
-        if use_cli:
-            cfg["cli"] = use_cli
-            changed = True
-        if model:
-            cfg["model"] = model
-            changed = True
-        if effort:
-            cfg["effort"] = effort
+        changed = reset
+        if reset:
+            cfg = operator_ai._copy_defaults()
+        if any([use_cli, model, effort, clear]) and not stage:
+            raise ResynthError("choose --stage when changing a route")
+        if any([use_cli, model, effort, clear]):
+            target_role = "fallback" if stage == "fallback" else ("review" if stage == "review" else role)
+            try:
+                route = operator_ai.route_for(cfg, stage, target_role)
+            except ValueError as exc:
+                raise ResynthError(str(exc)) from exc
+            if clear:
+                route["cli"] = None
+            if use_cli:
+                route["cli"] = use_cli
+            if model:
+                route["model"] = model
+            if effort:
+                route["effort"] = effort
+            cfg["routes"][stage][target_role] = route
             changed = True
         if changed and not dry_run:
-            operator_ai.save(cfg)
+            operator_ai.save(cfg, legacy=False)
         detected = operator_ai.detect()
-        messages = [
-            f"wired CLI: {cfg['cli'] or 'none'}",
-            f"model: {operator_ai.resolved_model(cfg) or 'CLI default'}",
-            f"reasoning effort: {cfg['effort']}",
-            f"detected on this machine: {', '.join(detected) or 'none'}",
-        ]
+        messages = ["staged routing policy (operator.yaml v2):"]
+        for route_stage, roles in cfg["routes"].items():
+            for route_role, route_cfg in roles.items():
+                messages.append(f"{route_stage}/{route_role}: {route_cfg['cli']} {operator_ai.resolved_model(route_cfg) or 'CLI default'} ({route_cfg['effort']})")
+        messages.append(f"detected on this machine: {', '.join(detected) or 'none'}")
         return {
             "ok": True,
-            "config": {**cfg, "resolved_model": operator_ai.resolved_model(cfg)},
+            "config": cfg,
             "detected": detected,
             "messages": messages,
         }

@@ -7,6 +7,15 @@ All notable changes to RESYNTH are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Staged AI routing in `operator.yaml` v2. Prompt authoring, extraction,
+  reconciliation and synthesis now have independent model and effort routes,
+  plus defined escalation, Claude-context fallback and independent review
+  routes. Existing flat operator settings migrate on first use with a dated
+  backup left beside the new file.
+- Claude context-window failures automatically continue once with
+  workspace-write Codex at the failed stage's effort. Other failures remain
+  manual fallbacks. Passing extraction, reconciliation and synthesis gates can
+  receive an advisory, read-only Codex quality review stored under `reviews/`.
 - Self update (`resynth update`): checks GitHub and fast-forwards the git
   install in place. The fast-forward rewrites only the files that changed,
   and because the install is editable the new code is live with no

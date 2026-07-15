@@ -33,3 +33,7 @@ Every architectural decision with a one line rationale.
 - Source schema v2 is adopted only through an explicit resynth migrate, never silently, and re-sealing afterwards stays an operator act.
 - MASTER.json format resynth-master/2 ships together with a load_master reader that accepts both /1 and /2, so downstream consumers never break on old exports.
 - Resolution is depth one by design, fetched sources are not scanned for further links unless the operator forces a re-scan with --source.
+- AI routing is versioned and per-stage: model policy is explicit, context-limit
+  fallback is limited to Claude-to-Codex once, and read-only AI review is
+  advisory rather than source verification; deterministic gates remain the
+  authority for advancement.

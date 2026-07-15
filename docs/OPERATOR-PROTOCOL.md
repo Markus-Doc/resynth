@@ -5,6 +5,24 @@
 > end. RESYNTH supplies structure, gates and evidence. The operator supplies
 > judgement. The platform itself never calls a model.
 
+## Staged AI routing and review
+
+`operator.yaml` is a versioned, workspace-scoped routing profile. The shipped
+policy uses Claude Sonnet (low) for prompts, Sonnet (medium) for extraction,
+and Claude Opus (high) for reconciliation and synthesis. Extraction can
+escalate to Opus; reconciliation and synthesis can escalate to Codex Sol at
+xhigh effort. Inspect it with `resynth operator`; edit one route with, for
+example, `resynth operator --stage extract --role author --model sonnet
+--effort medium`, or restore the policy with `resynth operator --reset`.
+
+If Claude reports a context-window limit, RESYNTH announces and runs a single
+workspace-write Codex Terra fallback at the same effort. It does not fail over
+for other errors and never chains another automatic retry. After a passing
+extraction, reconciliation or synthesis gate, Codex Terra may review the
+artifacts read-only. Its report is an AI quality signal, not verification of
+source truth: accept it, explicitly rerun with the stronger route, revise
+manually, or stop.
+
 ## The two pass discipline
 
 The single most important rule. Synthesis happens in two passes and never
