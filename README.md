@@ -47,10 +47,9 @@ The guided mode walks you through everything, one step at a time:
 
 1. On first run RESYNTH detects AI assistant CLIs on your machine (Claude
    Code, Codex, Gemini) and offers to wire one in. With an assistant wired
-   in, every thinking step can be done for you automatically. By default no
-   model is pinned, so steps use whatever default model your `claude` CLI is
-   set to. Adjust the wiring any time, including pinning a model:
-   `resynth operator --use claude --model claude-opus-4-8 --effort high`
+   in, every thinking step can be done for you automatically. Routes are
+   staged (Sonnet for prompts/extraction, Opus for reconciliation/synthesis,
+   with Codex escalation), and can be adjusted with `resynth operator`.
 2. Name your project and describe what you want researched, in one sentence.
 3. Already have your research reports? Say yes when asked and RESYNTH skips
    straight to loading them. Otherwise it creates one tailored research
@@ -72,6 +71,11 @@ The guided mode walks you through everything, one step at a time:
 
 Your projects live in the `RESYNTH` folder in your home directory. You can
 stop at any step and pick up where you left off, the guided mode remembers.
+At an AI handoff, type a custom instruction instead of `y` or `n` and it is
+given to that task. Type `auto` to run the remaining AI stages unattended;
+RESYNTH still enforces deterministic gates and does not fabricate missing
+research reports. A request mentioning Fable uses Claude Fable 5 for that one
+task only and never saves it as the workspace policy.
 
 Everything below this point is detail for operators and developers.
 
@@ -188,7 +192,7 @@ resynth seal <project>            hash everything, commit SEAL.yaml, tag the rep
 resynth export <project>          machine readable output/MASTER.json for agents
 resynth status <project>          gate dashboard
 resynth migrate <project>         upgrade a project's sources to the current schema (v2)
-resynth operator                  show or set the wired AI assistant, model and effort
+resynth operator                  show or set staged AI routes, models and effort
 resynth doctor                    environment probe
 resynth update                    check GitHub and fast-forward the install in place
 ```

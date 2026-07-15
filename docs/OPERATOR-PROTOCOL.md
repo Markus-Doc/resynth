@@ -23,6 +23,13 @@ artifacts read-only. Its report is an AI quality signal, not verification of
 source truth: accept it, explicitly rerun with the stronger route, revise
 manually, or stop.
 
+In guided mode, AI handoff questions accept more than yes/no: type a custom
+instruction and it is appended to that one delegated task, or type `auto` to
+run remaining AI stages automatically. Automatic mode still requires passing
+deterministic gates and does not bypass source intake, manual-file fallback or
+the final sealing confirmation. A custom Fable request uses `claude-fable-5`
+for that task only; it does not alter `operator.yaml`.
+
 ## The two pass discipline
 
 The single most important rule. Synthesis happens in two passes and never

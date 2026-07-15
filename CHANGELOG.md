@@ -7,6 +7,9 @@ All notable changes to RESYNTH are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Guided AI handoffs accept a free-text instruction or `auto`, which runs the
+  remaining delegable stages in the current session. A Fable request is an
+  explicit one-task Claude Fable 5 override and is never persisted as policy.
 - Staged AI routing in `operator.yaml` v2. Prompt authoring, extraction,
   reconciliation and synthesis now have independent model and effort routes,
   plus defined escalation, Claude-context fallback and independent review
