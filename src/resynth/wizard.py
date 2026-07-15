@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -36,6 +37,41 @@ from .resolve import preview_targets, run_resolve
 from .synthesise import run_synth_verify, run_synthesise
 
 console = Console()
+
+
+@dataclass
+class SessionControl:
+    """Operator choices that last only for the current guided run."""
+
+    automatic: bool = False
+    next_instruction: str = ""
+
+
+def _ai_choice(question: str, control: SessionControl) -> bool:
+    """Ask for delegation without reducing the operator to a yes/no answer."""
+    if control.automatic:
+        return True
+    answer = Prompt.ask(
+        f"{question} [bold](Y/n, custom instruction, or 'auto')[/bold]",
+        default="y",
+    ).strip()
+    if answer.lower() in {"", "y", "yes"}:
+        return True
+    if answer.lower() in {"auto", "automatic", "run automatically"}:
+        control.automatic = True
+        console.print("[cyan]Automatic mode is on for the remaining AI stages in this session.[/cyan]")
+        return True
+    if answer.lower() in {"n", "no", "q", "quit"}:
+        return False
+    # Free text is deliberately treated as an instruction, rather than an
+    # invalid response. It is attached to the next delegated task only.
+    control.next_instruction = answer
+    if "fable" in answer.lower():
+        console.print(
+            "[yellow]Fable 5 requested for the next task only. Its availability is temporary; "
+            "the saved routing policy is unchanged.[/yellow]"
+        )
+    return True
 
 DELEGATED_PROMPTS = {
     "prompts": (
@@ -399,7 +435,8 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mod
     return rc
 
 
-def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str]) -> bool:
+def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str],
+              instruction: str = "") -> bool:
     """Run one operator task through the configured AI CLI. True on rc 0."""
     prompt = DELEGATED_PROMPTS[key].format(project=project)
     if feedback:
@@ -407,6 +444,13 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
             "\n\nA previous attempt failed verification with these reasons, fix them:\n"
             + "\n".join(f"- {r}" for r in feedback[:15])
         )
+    if instruction:
+        prompt += f"\n\nOperator instruction for this task (follow it unless it conflicts with RESYNTH's evidence and provenance rules):\n{instruction}"
+        # Fable is an explicitly temporary, per-task request. Do not write it
+        # to operator.yaml or let it silently become a fallback policy.
+        if "fable" in instruction.lower() and ai_cfg.get("cli") == "claude":
+            ai_cfg = dict(ai_cfg)
+            ai_cfg["model"] = "claude-fable-5"
     console.print(
         f"\n[cyan]Handing this step to {ai_cfg['cli']} "
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
@@ -477,13 +521,17 @@ def _review(project: str, root: Path, profile: dict, stage: str, previous: dict 
     return report
 
 
-def _review_choice(project: str, root: Path, profile: dict, stage: str, previous: dict | None) -> str:
+def _review_choice(project: str, root: Path, profile: dict, stage: str, previous: dict | None,
+                   control: SessionControl) -> str:
+    if control.automatic:
+        console.print("[dim]Automatic mode: recorded the advisory review and advancing on the passing deterministic gate.[/dim]")
+        return "accept"
     if previous is None:
         return "accept" if Confirm.ask("Continue after the optional review?", default=True) else "manual"
     return Prompt.ask("Review decision", choices=["accept", "rerun", "manual", "stop"], default="accept")
 
 
-def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
+def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict, control: SessionControl) -> bool:
     topic = Prompt.ask("\nWhat do you want researched? Describe it in one sentence")
     if not topic.strip():
         return True
@@ -496,11 +544,11 @@ def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict) -> bool:
     prompts_file = pdir / "prompts" / "RESEARCH-PROMPTS.md"
     delegated = False
     route = _author_route(ai_cfg, "prompts")
-    if route.get("cli") and Confirm.ask(
-        f"Let {route['cli']} write the platform research prompts for you now?",
-        default=True,
+    if route.get("cli") and _ai_choice(
+        f"Let {route['cli']} write the platform research prompts for you now?", control
     ):
-        delegated = _delegate(project, root, route, "prompts", [])
+        delegated = _delegate(project, root, route, "prompts", [], control.next_instruction)
+        control.next_instruction = ""
     if delegated:
         _panel(
             "Step 1 of 6: research prompts",
@@ -601,22 +649,22 @@ def _step_operator(
     body: str,
     open_path: Path,
     verify,
+    control: SessionControl,
 ) -> bool:
     _panel(title, body)
     route = _author_route(ai_cfg, key)
-    if route.get("cli") and Confirm.ask(
-        f"Let {route['cli']} do this step for you now?", default=True
-    ):
+    if route.get("cli") and _ai_choice(f"Let {route['cli']} do this step for you now?", control):
         feedback: list[str] = []
         for attempt in range(1, 4):
-            if not _delegate(project, root, route, key, feedback):
+            if not _delegate(project, root, route, key, feedback, control.next_instruction):
                 break
+            control.next_instruction = ""
             result = verify()
             if result["ok"]:
                 prior = None
                 while True:
                     review = _review(project, root, ai_cfg, key, prior)
-                    decision = _review_choice(project, root, ai_cfg, key, review)
+                    decision = _review_choice(project, root, ai_cfg, key, review, control)
                     if decision == "accept":
                         console.print("[green]Gate PASS, moving on.[/green]")
                         return True
@@ -658,10 +706,11 @@ def _step_operator(
 
 def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
     pdir = config.project_dir(project)
+    control = SessionControl()
     while True:
         state = project_state(pdir)
         if state == "brief":
-            if not _step_brief(project, pdir, root, ai_cfg):
+            if not _step_brief(project, pdir, root, ai_cfg, control):
                 return
         elif state == "intake":
             if not _step_intake(project):
@@ -680,6 +729,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "the instructions file I am opening now.",
                 pdir / "claims" / "EXTRACTION-INSTRUCTIONS.md",
                 lambda: run_extract_verify(project),
+                control,
             ):
                 return
         elif state == "reconcile":
@@ -696,6 +746,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "I am opening explains each one.",
                 pdir / "index" / "RECONCILIATION-INSTRUCTIONS.md",
                 lambda: run_reconcile(project),
+                control,
             ):
                 return
         elif state == "synthesise":
@@ -711,6 +762,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "callout with the final prose, keeping the provenance markers.",
                 pdir / "output" / "MASTER.md",
                 lambda: run_synth_verify(project),
+                control,
             ):
                 return
         elif state == "audit":
