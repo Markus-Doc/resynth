@@ -1,8 +1,6 @@
 # RESYNTH
 
-## Ownership and third-party rights
-
-RESYNTH is an original project by M. Walker. The MIT License covers original code, documentation, pipeline design, and methodology. Dependencies, research standards, and user-supplied source documents retain their own rights and terms. See [NOTICE.md](NOTICE.md).
+Status: working, v0.2.4. Built from June 2026, last updated July 2026. Last reviewed September 2026.
 
 [![CI](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml/badge.svg)](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -72,7 +70,7 @@ The guided mode walks you through everything, one step at a time:
 Your projects live in the `RESYNTH` folder in your home directory. You can
 stop at any step and pick up where you left off, the guided mode remembers.
 At an AI handoff, type a custom instruction instead of `y` or `n` and it is
-given to that task. Type `auto` to run the remaining AI stages unattended;
+given to that task. Type `auto` to run the remaining AI stages unattended.
 RESYNTH still enforces deterministic gates and does not fabricate missing
 research reports. A request mentioning Fable uses Claude Fable 5 for that one
 task only and never saves it as the workspace policy.
@@ -211,7 +209,7 @@ resynth update                    check GitHub and fast-forward the install in p
 
 `resynth update` fast-forwards the git install (the one the installer sets
 up) to the latest release. Only changed and new files are rewritten, and the
-editable install means the new code is live without re-patching; a dependency
+editable install means the new code is live without re-patching. A dependency
 reinstall happens only when `pyproject.toml` changed. Use `--check` to look
 without applying, `--yes` to skip the prompt. The guided mode also checks at
 most once a day on launch and, when a newer version exists, pings the desktop
@@ -303,3 +301,7 @@ lives in [CHANGELOG.md](CHANGELOG.md).
 ## Licence
 
 MIT, copyright M. Walker.
+
+## Ownership and third-party rights
+
+RESYNTH is an original project by M. Walker. The MIT License covers original code, documentation, pipeline design, and methodology. Dependencies, research standards, and user-supplied source documents retain their own rights and terms. See [NOTICE.md](NOTICE.md).
