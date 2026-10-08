@@ -4,7 +4,55 @@ All notable changes to RESYNTH are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-08
+
+### Added
+- Claim provenance. Every claim carries a short verbatim `source_excerpt`.
+  The extract gate finds it in the source, so a claim that is not in its
+  source fails, and records its line, PDF page, video timestamp and heading
+  together with the citations the source gives in that sentence: numbered
+  and markdown footnotes, links, bare URLs, author-year references resolved
+  to DOIs, and ChatGPT citation tokens whose URLs were not saved. The result
+  is `index/provenance.jsonl`, a generated Claim Provenance appendix in
+  MASTER.md, a `provenance` object on every claim in MASTER.json, a hashed
+  seal entry and an audit check that fails on a stale index.
+- `resynth trace <project> <claim_id>` shows where one claim came from.
+  `resynth provenance <project>` summarises the project and lists claims by
+  evidence status.
+- `resynth check-claims <project> <source_id>`, a read-only check of one
+  source's claims that parallel operators can run without touching gates.
+- `resynth reconcile --fill-unique` records every undecided claim that is not
+  in a candidate pair as UNIQUE, marked `decided_by: resynth --fill-unique`.
+- `python -m resynth` runs the CLI.
+
+### Changed
+- Guided extraction runs one AI task per source rather than one task reading
+  every source. The first source seeds the topic tag vocabulary and the rest
+  run in parallel (`parallel.extract` in operator.yaml, default 3). Each task
+  checks its own file before finishing, and a failed gate re-runs only the
+  sources its reasons name.
+- Delegated reconcile and synthesis tasks run their own gate check in-session
+  and fix what it reports, instead of ending and being restarted from scratch.
+- The synthesis scaffold lists each claim's text and decision in its section
+  callout, so the operator writes from MASTER.md alone. The source register
+  and provenance appendices are generated and refreshed by synthesise and
+  synth-verify, and claim ids listed there never count as citations.
+- The claims index lists each claim once, with extra tags inline, instead of
+  once per tag.
+- Candidate detection compares only cross-source pairs, drops stopwords,
+  weights shared words by rarity and flags differing figures under a shared
+  tag. On a 155-claim project it found 25 of 56 related pairs where the old
+  heuristic found none. Flagged pairs left as two UNIQUE groups raise a
+  reconcile warning.
+- A primary source that yields no claims now fails the extract gate.
+- The guided status line polls only the folders an operator writes to.
+
+### Upgrading
+- Projects made before 0.3.0 have claims without excerpts. Add excerpts, or
+  set `require_source_excerpt: false` in `merge-rules.yaml`. `resynth migrate`
+  reports how many claims lack one.
+
+## Changes before 0.3.0 (previously recorded as Unreleased)
 
 ### Added
 - Interruptible guided-session control: `resynth control <project> "<directive>"`

@@ -27,12 +27,25 @@ for SUPERSEDED, otherwise null), note (required for OUT_OF_SCOPE).
 
 ## Mechanical candidates for review
 
-The pipeline flagged these claim pairs as possible duplicates or conflicts
-based on shared tags and token overlap. Classify every one of them.
+The pipeline flagged these cross-source claim pairs as possible duplicates or
+conflicts, by weighted word overlap (overlap) or by differing figures on a
+shared topic (numeric-difference). Decide every flagged claim explicitly. The
+heuristic misses paraphrases, so also read the claims index for
+relationships it did not flag.
 
-- P001: S01-C001 and S02-C001 (shared tags hashing-algorithms, overlap 0.368)
+- P001: S01-C001 and S02-C001 (overlap, shared tags hashing-algorithms, score 0.648)
+- P002: S01-C003 and S02-C003 (overlap, shared tags storage-policy, score 0.342)
+- P003: S01-C003 and S03-C001 (overlap, shared tags storage-policy, score 0.342)
+- P004: S01-C002 and S02-C002 (overlap, shared tags hashing-algorithms, work-factor, score 0.322)
+- P005: S02-C003 and S03-C001 (overlap, shared tags storage-policy, score 0.301)
 
 ## Completion
 
 Re-run resynth reconcile demo after writing decisions. The gate
 passes only when every claim sits in exactly one decision group.
+
+To save effort, write only the groups that need judgement (CORROBORATED,
+SUPERSEDED, CONFLICT, OUT_OF_SCOPE, and UNIQUE for any flagged claim), then
+run resynth reconcile demo --fill-unique. That records every other
+undecided claim as UNIQUE with decided_by "resynth --fill-unique". It never
+fills a claim that appears in a candidate pair above.

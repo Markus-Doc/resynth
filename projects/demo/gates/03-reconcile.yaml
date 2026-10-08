@@ -6,3 +6,4 @@ checks:
   claims_total: 11
   claims_decided: 11
   decision_groups: 7
+  auto_filled_unique: 0

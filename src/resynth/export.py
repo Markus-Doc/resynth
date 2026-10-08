@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from . import config
+from . import provenance
 from .errors import ResynthError
 from .fsutil import safe_write
 from .gates import require_gate
@@ -33,6 +34,18 @@ def _export_sources(pdir: Path) -> list[dict]:
     return sorted(out, key=lambda s: s["source_id"])
 
 
+def _claims_with_provenance(pdir: Path, claims: dict) -> list[dict]:
+    """Each claim with its verified source location and cited evidence, so a
+    downstream agent can follow any statement back to where it came from."""
+    records = provenance.load(pdir)
+    out = []
+    for cid in sorted(claims):
+        rec = records.get(cid)
+        trace = {k: v for k, v in rec.items() if k not in {"claim_id", "source_excerpt"}} if rec else None
+        out.append({**claims[cid], "provenance": trace})
+    return out
+
+
 def run_export(project: str, dry_run: bool = False) -> dict:
     pdir = config.project_dir(project)
     require_gate(pdir, "04-synthesis")
@@ -46,7 +59,7 @@ def run_export(project: str, dry_run: bool = False) -> dict:
         "format": FORMAT_V2,
         "sections": sections,
         "sources": _export_sources(pdir),
-        "claims": sorted(plan["claims"].values(), key=lambda c: c["claim_id"]),
+        "claims": _claims_with_provenance(pdir, plan["claims"]),
         "decisions": plan["decisions"],
         "winning_claims": plan["winners"],
         "conflicts": [d["group_id"] for d in plan["conflicts"]],

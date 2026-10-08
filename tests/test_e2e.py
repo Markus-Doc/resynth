@@ -60,10 +60,14 @@ def test_full_pipeline(ws):
         assert src["source_type"] == "report"
         assert "url" in src and "resolved_from" in src
         assert "_file" not in src and "_body" not in src
-    # claims are dumped whole, so optional fields like source_locator ride along
-    assert exported["claims"] == sorted(
+    # claims are dumped whole, so optional fields like source_locator ride
+    # along, plus the provenance that traces each one back to its source
+    assert [{k: v for k, v in c.items() if k != "provenance"} for c in exported["claims"]] == sorted(
         load_all_claims(pdir), key=lambda c: c["claim_id"]
     )
+    trace = exported["claims"][0]["provenance"]
+    assert trace["source_id"] == "S01" and trace["section"] == "Hashing algorithms"
+    assert trace["line_start"] == 5
 
     loaded = load_master(pdir / "output" / "MASTER.json")
     assert loaded["format_version"] == 2
@@ -96,7 +100,9 @@ def test_dry_run_writes_nothing(ws):
     assert (config.runs_dir()).is_dir(), "dry runs still produce a run log"
 
 
-V1_FIXTURE = Path(__file__).resolve().parents[1] / "projects" / "demo" / "output" / "MASTER.json"
+# The demo project's MASTER.json as exported by 0.1.0, kept as a fixture so the
+# v1 reader stays tested after the demo itself is re-exported in a newer format.
+V1_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "master-v1.json"
 
 
 def test_load_master_v1_fixture():

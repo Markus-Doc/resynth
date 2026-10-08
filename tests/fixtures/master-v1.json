@@ -6,16 +6,6 @@
       "claim_type": "recommendation",
       "confidence_as_stated": "unstated",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 6,
-        "line_start": 5,
-        "occurrences": 1,
-        "section": "Hashing algorithms",
-        "source_id": "S01",
-        "status": "uncited"
-      },
-      "source_excerpt": "identifies Argon2id as the preferred algorithm for password hashing in new systems",
       "source_id": "S01",
       "supporting_quote_location": "Hashing algorithms",
       "topic_tags": [
@@ -28,16 +18,6 @@
       "claim_type": "recommendation",
       "confidence_as_stated": "high",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 11,
-        "line_start": 10,
-        "occurrences": 1,
-        "section": "Hashing algorithms",
-        "source_id": "S01",
-        "status": "uncited"
-      },
-      "source_excerpt": "a bcrypt work factor of at least 12 is required for new deployments",
       "source_id": "S01",
       "supporting_quote_location": "Hashing algorithms",
       "topic_tags": [
@@ -51,16 +31,6 @@
       "claim_type": "fact",
       "confidence_as_stated": "high",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 15,
-        "line_start": 15,
-        "occurrences": 1,
-        "section": "Storage policy",
-        "source_id": "S01",
-        "status": "uncited"
-      },
-      "source_excerpt": "Plaintext storage of passwords is prohibited under every framework reviewed",
       "source_id": "S01",
       "supporting_quote_location": "Storage policy",
       "topic_tags": [
@@ -73,16 +43,6 @@
       "claim_type": "recommendation",
       "confidence_as_stated": "unstated",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 20,
-        "line_start": 20,
-        "occurrences": 1,
-        "section": "Key protection",
-        "source_id": "S01",
-        "status": "uncited"
-      },
-      "source_excerpt": "an additional secret pepper applied before hashing",
       "source_id": "S01",
       "supporting_quote_location": "Key protection",
       "topic_tags": [
@@ -95,16 +55,6 @@
       "claim_type": "finding",
       "confidence_as_stated": "medium",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 5,
-        "line_start": 5,
-        "occurrences": 1,
-        "section": "What we run in production",
-        "source_id": "S02",
-        "status": "uncited"
-      },
-      "source_excerpt": "Argon2id is the preferred password hashing algorithm across our fleet",
       "source_id": "S02",
       "supporting_quote_location": "What we run in production",
       "topic_tags": [
@@ -117,16 +67,6 @@
       "claim_type": "finding",
       "confidence_as_stated": "medium",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 9,
-        "line_start": 8,
-        "occurrences": 1,
-        "section": "What we run in production",
-        "source_id": "S02",
-        "status": "uncited"
-      },
-      "source_excerpt": "a work factor of 10 is sufficient and higher values caused unacceptable login latency",
       "source_id": "S02",
       "supporting_quote_location": "What we run in production",
       "topic_tags": [
@@ -140,16 +80,6 @@
       "claim_type": "fact",
       "confidence_as_stated": "high",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 14,
-        "line_start": 14,
-        "occurrences": 1,
-        "section": "Policy reminders",
-        "source_id": "S02",
-        "status": "uncited"
-      },
-      "source_excerpt": "Plaintext password storage is forbidden in all environments",
       "source_id": "S02",
       "supporting_quote_location": "Policy reminders",
       "topic_tags": [
@@ -162,16 +92,6 @@
       "claim_type": "procedure",
       "confidence_as_stated": "medium",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 20,
-        "line_start": 19,
-        "occurrences": 1,
-        "section": "Migration practice",
-        "source_id": "S02",
-        "status": "uncited"
-      },
-      "source_excerpt": "rehashing each password at the user's next successful login",
       "source_id": "S02",
       "supporting_quote_location": "Migration practice",
       "topic_tags": [
@@ -184,16 +104,6 @@
       "claim_type": "finding",
       "confidence_as_stated": "high",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 5,
-        "line_start": 5,
-        "occurrences": 1,
-        "section": "Findings",
-        "source_id": "S03",
-        "status": "uncited"
-      },
-      "source_excerpt": "stored passwords hashed, never in plaintext",
       "source_id": "S03",
       "supporting_quote_location": "Findings",
       "topic_tags": [
@@ -206,16 +116,6 @@
       "claim_type": "metric",
       "confidence_as_stated": "high",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 9,
-        "line_start": 8,
-        "occurrences": 1,
-        "section": "Findings",
-        "source_id": "S03",
-        "status": "uncited"
-      },
-      "source_excerpt": "successful credential stuffing attempts fell by 90 percent",
       "source_id": "S03",
       "supporting_quote_location": "Findings",
       "topic_tags": [
@@ -228,16 +128,6 @@
       "claim_type": "recommendation",
       "confidence_as_stated": "unstated",
       "depends_on": [],
-      "provenance": {
-        "citations": [],
-        "line_end": 13,
-        "line_start": 13,
-        "occurrences": 1,
-        "section": "Recommendations",
-        "source_id": "S03",
-        "status": "uncited"
-      },
-      "source_excerpt": "Continuous monitoring of authentication failure rates should be added",
       "source_id": "S03",
       "supporting_quote_location": "Recommendations",
       "topic_tags": [
@@ -331,7 +221,7 @@
       "winner": null
     }
   ],
-  "format": "resynth-master/2",
+  "format": "resynth-master/1",
   "project": "demo",
   "sections": [
     {
@@ -368,58 +258,7 @@
     },
     {
       "heading": "Appendix: Source Register",
-      "text": "| Source | Title | Type | Authority | Authored | Link | Content hash |\n| --- | --- | --- | --- | --- | --- | --- |\n| S01 | Password Storage Guidance, Standards Review | report | unknown | unknown | - | 46bc385bee78 |\n| S02 | Engineering Field Notes on Credential Storage | report | unknown | unknown | - | 82890e27fa39 |\n| S03 | Incident Retrospective, Credential Stuffing Campaign | report | unknown | unknown | - | 1c7d5ec1cb12 |"
-    },
-    {
-      "heading": "Appendix: Claim Provenance",
-      "text": "Every claim marker in this document resolves here. Location is the line in the\nsource as ingested (with the PDF page or video timestamp where there is one).\nThe excerpt is verbatim source text and can be searched for in the original.\nEvidence lists what the source itself cites at that passage. A claim with no\nevidence listed rests on the source's own analysis. Generated by RESYNTH from\nindex/provenance.jsonl, do not edit by hand.\n\n| Claim | Decision | Source and location | Excerpt | Evidence the source cites there |\n| --- | --- | --- | --- | --- |\n| S01-C001 | CORROBORATED G001 | S01 L5-6, Hashing algorithms | \"identifies Argon2id as the preferred algorithm for password hashing in new systems\" | none at this passage, the source's own analysis |\n| S01-C002 | CONFLICT G002 | S01 L10-11, Hashing algorithms | \"a bcrypt work factor of at least 12 is required for new deployments\" | none at this passage, the source's own analysis |\n| S01-C003 | CORROBORATED G003 | S01 L15, Storage policy | \"Plaintext storage of passwords is prohibited under every framework reviewed\" | none at this passage, the source's own analysis |\n| S01-C004 | UNIQUE G004 | S01 L20, Key protection | \"an additional secret pepper applied before hashing\" | none at this passage, the source's own analysis |\n| S02-C001 | CORROBORATED G001 | S02 L5, What we run in production | \"Argon2id is the preferred password hashing algorithm across our fleet\" | none at this passage, the source's own analysis |\n| S02-C002 | CONFLICT G002 | S02 L8-9, What we run in production | \"a work factor of 10 is sufficient and higher values caused unacceptable login latency\" | none at this passage, the source's own analysis |\n| S02-C003 | CORROBORATED G003 | S02 L14, Policy reminders | \"Plaintext password storage is forbidden in all environments\" | none at this passage, the source's own analysis |\n| S02-C004 | UNIQUE G005 | S02 L19-20, Migration practice | \"rehashing each password at the user's next successful login\" | none at this passage, the source's own analysis |\n| S03-C001 | CORROBORATED G003 | S03 L5, Findings | \"stored passwords hashed, never in plaintext\" | none at this passage, the source's own analysis |\n| S03-C002 | UNIQUE G006 | S03 L8-9, Findings | \"successful credential stuffing attempts fell by 90 percent\" | none at this passage, the source's own analysis |\n| S03-C003 | UNIQUE G007 | S03 L13, Recommendations | \"Continuous monitoring of authentication failure rates should be added\" | none at this passage, the source's own analysis |"
-    }
-  ],
-  "sources": [
-    {
-      "author_or_tool": "unknown",
-      "authority_tier": "unknown",
-      "date_authored": "unknown",
-      "date_ingested": "2026-06-11",
-      "origin": "examples\\demo\\standards-review.md",
-      "recency_rank": 1,
-      "resolved_from": null,
-      "schema_version": 1,
-      "sha256": "46bc385bee789bf2193e4ca23bdcd5c88fcb57c3e739829e3e464fdbeb235685",
-      "source_id": "S01",
-      "source_type": "report",
-      "title": "Password Storage Guidance, Standards Review",
-      "url": null
-    },
-    {
-      "author_or_tool": "unknown",
-      "authority_tier": "unknown",
-      "date_authored": "unknown",
-      "date_ingested": "2026-06-11",
-      "origin": "examples\\demo\\engineering-field-notes.md",
-      "recency_rank": 2,
-      "resolved_from": null,
-      "schema_version": 1,
-      "sha256": "82890e27fa39ed0413c8ef5d094fee0b9d89f5830f80e24138c374350c36844e",
-      "source_id": "S02",
-      "source_type": "report",
-      "title": "Engineering Field Notes on Credential Storage",
-      "url": null
-    },
-    {
-      "author_or_tool": "unknown",
-      "authority_tier": "unknown",
-      "date_authored": "unknown",
-      "date_ingested": "2026-06-11",
-      "origin": "examples\\demo\\incident-retrospective.md",
-      "recency_rank": 3,
-      "resolved_from": null,
-      "schema_version": 1,
-      "sha256": "1c7d5ec1cb128345ff569f166f070fe0c6720ce48b2362561266a9490c57577f",
-      "source_id": "S03",
-      "source_type": "report",
-      "title": "Incident Retrospective, Credential Stuffing Campaign",
-      "url": null
+      "text": "| Source | Title | Authority | Authored | Content hash |\n| --- | --- | --- | --- | --- |\n| S01 | Password Storage Guidance, Standards Review | unknown | unknown | 46bc385bee78 |\n| S02 | Engineering Field Notes on Credential Storage | unknown | unknown | 82890e27fa39 |\n| S03 | Incident Retrospective, Credential Stuffing Campaign | unknown | unknown | 1c7d5ec1cb12 |"
     }
   ],
   "winning_claims": {

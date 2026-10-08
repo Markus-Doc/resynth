@@ -43,6 +43,8 @@ DEFAULTS: dict[str, Any] = {
         "fallback": {"fallback": {"cli": "codex", "model": "gpt-5.6-terra", "effort": "high"}},
         "review": {"review": {"cli": "codex", "model": "gpt-5.6-terra", "effort": "high"}},
     },
+    # Extraction runs one AI task per source, this many at once.
+    "parallel": {"extract": 3},
 }
 
 

@@ -219,8 +219,45 @@ Validation rules, enforced by `resynth extract-verify`:
 Example claim line:
 
 ```
-{"claim_id": "S03-C002", "source_id": "S03", "claim_text": "Retry queues should cap at three attempts before alerting.", "claim_type": "recommendation", "topic_tags": ["reliability"], "supporting_quote_location": "Transcript at 14:32", "confidence_as_stated": "high", "depends_on": [], "source_locator": {"url": "https://vimeo.com/76979871", "timestamp": "00:14:32"}}
+{"claim_id": "S03-C002", "source_id": "S03", "claim_text": "Retry queues should cap at three attempts before alerting.", "claim_type": "recommendation", "topic_tags": ["reliability"], "supporting_quote_location": "Transcript at 14:32", "source_excerpt": "cap retries at three attempts and then alert", "confidence_as_stated": "high", "depends_on": [], "source_locator": {"url": "https://vimeo.com/76979871", "timestamp": "00:14:32"}}
 ```
+
+## Claim source_excerpt and the provenance index
+
+From 0.3.0 every claim also carries `source_excerpt`: 15 to 300 characters
+copied verbatim from the sentence that states the claim. Matching ignores
+case, whitespace and line breaks, smart quote and dash style, markdown
+emphasis and escapes, footnote markers and ChatGPT citation tokens, so a
+faithful copy matches while an invented claim does not.
+
+`resynth extract-verify` fails a claim whose excerpt is not in its source,
+and a claim with no excerpt unless `merge-rules.yaml` sets
+`require_source_excerpt: false`. When the gate passes it writes
+`index/provenance.jsonl`, one record per claim:
+
+| Field | Meaning |
+| --- | --- |
+| line_start, line_end | lines of the excerpt in the source body as ingested |
+| page | PDF page, from the form feeds pdftotext writes |
+| timestamp | the nearest transcript timestamp at or before the excerpt |
+| section | the nearest heading above the excerpt |
+| occurrences | how often the excerpt occurs, a warning above one |
+| citations | what the source cites in the sentence or table row holding the excerpt |
+| status | cited (a resolvable URL or DOI), unresolved (a marker with no recoverable link) or uncited |
+
+Each citation has a `kind`: `footnote` (a numbered or markdown footnote
+resolved through the source's note list), `link` (a markdown link), `url` (a
+bare URL), `paper` (an author-year citation resolved through the source's
+reference list, usually to a DOI) or `citation_token` (a ChatGPT citation
+token whose URL the saved file does not hold). Its `scope` is `sentence`, or
+`paragraph` when the sentence cites nothing and the next citation in the same
+paragraph is used. A citation whose URL matches a source fetched by
+`resolve` carries `fetched_as` with that source's id.
+
+The index is derived data. It is rebuilt by every extract-verify, written into
+MASTER.md as the Claim Provenance appendix, attached to each claim in
+MASTER.json, hashed by the seal, and checked by the audit gate, which fails
+when it no longer matches the sources and claims on disk.
 
 ## MASTER.json formats
 

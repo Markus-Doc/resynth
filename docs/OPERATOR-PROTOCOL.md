@@ -122,26 +122,37 @@ Read projects/<project>/claims/EXTRACTION-INSTRUCTIONS.md and follow it exactly.
 For each source file under projects/<project>/sources/, read only that source
 and append its claims to the matching claims/S<NN>-claims.jsonl file, one JSON
 object per line in the documented schema. Restate each claim in your own
-words, one claim per line, split compound statements. Record the confidence
-the source itself states, not your own. Reuse topic tags across sources.
+words, one claim per line, split compound statements. Give every claim a
+source_excerpt of 15 to 300 characters copied exactly from the sentence that
+states it. Record the confidence the source itself states, not your own.
+Reuse topic tags across sources.
+Check each finished source with: resynth check-claims <project> S<NN> --json
 Then run: resynth extract-verify <project> --json
 Fix every reported violation and re-run until the gate reports PASS.
 ```
+
+The guided mode runs this stage as one AI task per source. The first source
+runs alone and its topic tags are offered to the rest, which run in parallel
+(`parallel.extract` in operator.yaml, default 3). Each task runs
+check-claims on its own file before it finishes, and a failed gate re-runs
+only the sources its reasons name.
 
 ### Stage 3, reconciliation
 
 ```
 Run: resynth reconcile <project> --json
-Read projects/<project>/index/RECONCILIATION-INSTRUCTIONS.md, the claims index
-at index/claims-index.md and the flagged pairs in index/candidates.jsonl.
-Classify every candidate and every remaining claim into decision groups in
-index/reconciliation.jsonl, one JSON object per line. Every extracted claim
-must land in exactly one group. Use CORROBORATED when sources agree, UNIQUE
-for single source claims, SUPERSEDED only with a rule from merge-rules.yaml
-and a named winner, CONFLICT for genuine disagreement which you must never
-resolve, OUT_OF_SCOPE only with a one line reason. Set decided_by to your
-agent name. Then re-run: resynth reconcile <project> --json
-Fix every reported reason until the gate reports PASS.
+Read projects/<project>/index/RECONCILIATION-INSTRUCTIONS.md and the claims
+index at index/claims-index.md, which lists every claim once. Write decision
+groups to index/reconciliation.jsonl, one JSON object per line, for the claims
+that need judgement: CORROBORATED when sources agree, SUPERSEDED only with a
+rule from merge-rules.yaml and a named winner, CONFLICT for genuine
+disagreement which you must never resolve, OUT_OF_SCOPE only with a one line
+reason, and UNIQUE for any claim the instructions list in a candidate pair.
+Set decided_by to your agent name.
+Then run: resynth reconcile <project> --fill-unique --json
+It records every other undecided claim as UNIQUE. Fix every reported reason
+until the gate reports PASS, and read any warning about a flagged pair left
+as two UNIQUE groups.
 ```
 
 ### Stage 4, synthesis
@@ -149,8 +160,10 @@ Fix every reported reason until the gate reports PASS.
 ```
 Run: resynth synthesise <project> --json
 Open projects/<project>/output/MASTER.md. Replace every todo callout with
-prose. Work only from the claims index and the reconciliation decisions,
-never from the raw sources. Every paragraph must end with provenance markers
+prose. Each callout lists its claims with their text and decision, so work
+from MASTER.md alone, never from the raw sources. Leave everything from
+"## Appendix: Source Register" down alone, RESYNTH generates and refreshes
+it. Every paragraph must end with provenance markers
 listing the claim ids it rests on, for example [S01-C003, S02-C011]. Cite
 every claim from every CORROBORATED and UNIQUE group and every SUPERSEDED
 winner at least once. Describe each CONFLICT in the Conflicts section citing

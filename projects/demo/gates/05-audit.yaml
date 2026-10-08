@@ -12,3 +12,8 @@ checks:
     S02: ok
     S03: ok
   dropped_claims: []
+  provenance:
+    claims_located: 11
+    cited: 0
+    unresolved: 0
+    uncited: 11

@@ -37,3 +37,13 @@ Every architectural decision with a one line rationale.
   fallback is limited to Claude-to-Codex once, and read-only AI review is
   advisory rather than source verification; deterministic gates remain the
   authority for advancement.
+- Every claim carries a verbatim source_excerpt because a section reference cannot be checked by machine. Finding the excerpt in the source both rejects claims the source does not contain and pins each claim to a line and to the citations around it, so provenance survives synthesis without trusting the operator.
+- Excerpt matching ignores case, whitespace, quote and dash style, markdown emphasis, footnote markers and citation tokens, because a faithful copy differs from the source in exactly those ways and nothing else.
+- Provenance is derived data (index/provenance.jsonl), rebuilt by extract-verify rather than gated separately, so already sealed projects never grow a phantom gate, and the audit gate fails when it no longer matches the sources and claims.
+- A citation is taken from the excerpt's own sentence first and from the rest of its paragraph only when the sentence cites nothing, recorded with a paragraph scope, because ChatGPT and similar tools cite once at the end of a run of sentences.
+- Citation tokens without URLs, such as ChatGPT's, are recorded as unresolved rather than dropped, so the gap is visible and a re-export with links can close it.
+- MASTER.md appendices are generated and refreshed by synthesise and synth-verify, and claim ids listed in them never count as citations, so the operator owns only the body prose.
+- Guided extraction runs one AI task per source, seeded by the first source's tags and then in parallel, because a single task reading every source spent its context on sources it was not working on and forced a whole-stage retry on any failure.
+- Delegated tasks run their stage check in-session (check-claims, reconcile --fill-unique, synth-verify) through python -m resynth with the wizard's own interpreter, so they work whether or not resynth is on PATH.
+- reconcile --fill-unique never fills a claim that appears in a candidate pair, so the shortcut saves writing trivial UNIQUE groups without letting a possible duplicate or conflict pass undecided.
+- Candidate detection weights shared words by inverse document frequency and compares only cross-source pairs, with thresholds tuned against a real 155-claim project, because plain Jaccard on restated claims flagged nothing.

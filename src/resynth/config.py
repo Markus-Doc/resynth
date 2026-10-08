@@ -31,6 +31,10 @@ rules:
   - primary_beats_secondary
   - explicit_beats_implied
   - conflicts_are_logged_not_resolved
+# Every claim must carry a short verbatim source_excerpt that RESYNTH finds
+# in its source, which pins the claim to a line and to the evidence the
+# source cites there. Set false only for legacy projects made before 0.3.0.
+require_source_excerpt: true
 # section_order controls body section ordering in MASTER.md.
 # List topic tags in the desired order. Empty means alphabetical.
 section_order: []

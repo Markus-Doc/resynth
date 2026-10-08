@@ -1,6 +1,6 @@
 # RESYNTH
 
-Status: working, v0.2.4. Built from June 2026, last updated July 2026. Last reviewed September 2026.
+Status: working, v0.3.0. Built from June 2026, last updated October 2026. Last reviewed October 2026.
 
 [![CI](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml/badge.svg)](https://github.com/Markus-Doc/resynth/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -58,13 +58,17 @@ The guided mode walks you through everything, one step at a time:
 5. RESYNTH then drives the consolidation: claims are extracted, compared
    across reports, and written into one master document. With an assistant
    wired in each step runs automatically and is re-checked against the
-   quality gate, with up to three corrective passes. Without one, RESYNTH
-   opens the right file, explains what to do, and gives you the exact
-   instruction to paste into any AI assistant. Nothing advances until its
-   gate passes.
+   quality gate, with up to three corrective passes. Extraction runs one AI
+   task per report, several at once, and each task checks its own work
+   before it finishes. Without an assistant, RESYNTH opens the right file,
+   explains what to do, and gives you the exact instruction to paste into
+   any AI assistant. Nothing advances until its gate passes.
 6. When every gate is green, RESYNTH seals the result. You get:
-   - `MASTER.md`, the single best document, for you to read.
-   - `MASTER.json`, the same content structured for an AI agent to action.
+   - `MASTER.md`, the single best document, for you to read. Its last
+     section traces every statement to its report, line and excerpt, and to
+     the link, footnote or paper DOI that report cited there.
+   - `MASTER.json`, the same content structured for an AI agent to action,
+     with the same trace on every claim.
    - `AUDIT-REPORT.md`, proof of where every statement came from.
 
 Your projects live in the `RESYNTH` folder in your home directory. You can
@@ -106,6 +110,37 @@ chat -> brief -> per platform prompts -> research reports -> intake ->
 resolve (optional) -> extract -> reconcile -> synthesise -> audit -> seal ->
 MASTER.md + MASTER.json
 ```
+
+## Tracing a statement to its origin
+
+Every claim carries a short `source_excerpt` copied verbatim from its
+report. The extract gate finds that excerpt in the report, so a claim that is
+not in its source cannot pass. Finding it also pins the claim to a line (and
+a PDF page or video timestamp) and to the citations the report gives in that
+sentence: numbered footnotes, markdown links, bare URLs, author-year
+references resolved to DOIs through the report's reference list, and
+citation tokens whose URLs were lost when the report was saved. The result is
+`index/provenance.jsonl`, rebuilt on every extract-verify, and the Claim
+Provenance appendix that RESYNTH writes into `MASTER.md`.
+
+```
+resynth trace myproject S02-C003          # where one statement came from
+resynth provenance myproject              # how well the whole project traces
+resynth provenance myproject --status unresolved   # claims whose citations have no recoverable link
+```
+
+`trace` prints the claim, its decision group, the report and line, the
+excerpt, the evidence cited there and where the master cites it. Each
+citation carries a scope: `sentence` when it sits in the claim's own
+sentence, `paragraph` when the report cites once at the end of a run of
+sentences, as ChatGPT reports do. A claim with no citation at its passage is
+reported as the report's own analysis rather than credited to a source. The
+audit gate fails if the provenance index no longer matches the sources and
+claims on disk.
+
+Projects made before 0.3.0 have claims without excerpts. Add an excerpt to
+each claim, or set `require_source_excerpt: false` in `merge-rules.yaml` to
+keep the old behaviour.
 
 ## Fetching linked sources
 
@@ -154,10 +189,10 @@ only needed for .docx and .pdf intake.
 | Stage | Command | Gate |
 | --- | --- | --- |
 | 1 INTAKE | resynth intake | every source has complete frontmatter and a verified hash |
-| 2 EXTRACT | resynth extract, resynth extract-verify | zero schema violations, zero dangling references |
+| 2 EXTRACT | resynth extract, resynth extract-verify | zero schema violations, zero dangling references, every excerpt found in its source, every report yields claims |
 | 3 RECONCILE | resynth reconcile | every claim in exactly one decision group |
 | 4 SYNTHESIS | resynth synthesise, resynth synth-verify | every winning claim cited, conflicts logged, no orphan prose |
-| 5 AUDIT | resynth audit, resynth seal | full coverage, no source drift, sealed hashes plus git tag |
+| 5 AUDIT | resynth audit, resynth seal | full coverage, no source drift, current provenance, sealed hashes plus git tag |
 
 A stage cannot run until the previous gate reports PASS. Check progress at
 any time with resynth status <project>, machine readable with --json.
@@ -192,8 +227,12 @@ resynth brief <project> --topic   capture the research question, generate the pr
 resynth intake <project> --source <file> ...   stage 1, repeatable per file
 resynth resolve <project>         fetch links and file references inside sources as new first class sources
 resynth extract <project>         stage 2 workspace generation
-resynth extract-verify <project>  stage 2 gate
+resynth check-claims <project> <source_id>   read-only check of one source's claims, safe in parallel
+resynth extract-verify <project>  stage 2 gate, also rebuilds index/provenance.jsonl
 resynth reconcile <project>       stage 3, also evaluates the gate
+resynth reconcile <project> --fill-unique   record undecided claims outside candidate pairs as UNIQUE
+resynth trace <project> <claim_id>          where one claim came from
+resynth provenance <project>      provenance summary, --status lists claims by evidence status
 resynth synthesise <project>      stage 4 scaffold generation
 resynth synth-verify <project>    stage 4 gate
 resynth audit <project>           stage 5 coverage, drift, traceability
@@ -234,8 +273,10 @@ Run: resynth extract <project> --json
 Read projects/<project>/claims/EXTRACTION-INSTRUCTIONS.md and follow it exactly.
 For each source under projects/<project>/sources/, read only that source and
 append its claims to claims/S<NN>-claims.jsonl, one JSON object per line in
-the documented schema. Restate claims in your own words, one claim per line.
-Record the confidence the source states, not your own. Reuse topic tags.
+the documented schema. Restate claims in your own words, one claim per line,
+and give each a source_excerpt copied verbatim from the sentence that states
+it. Record the confidence the source states, not your own. Reuse topic tags.
+Check each source with: resynth check-claims <project> S<NN> --json
 Then run: resynth extract-verify <project> --json and fix every violation
 until the gate reports PASS.
 ```
@@ -249,24 +290,25 @@ claim and source schemas live in
 
 ```
 Run: resynth reconcile <project> --json
-Read index/RECONCILIATION-INSTRUCTIONS.md, index/claims-index.md and
-index/candidates.jsonl. Classify every candidate and every claim into
-decision groups in index/reconciliation.jsonl. Every claim lands in exactly
-one group. CORROBORATED when sources agree, UNIQUE for single source claims,
-SUPERSEDED only with a merge rule and a winner, CONFLICT for genuine
-disagreement which you never resolve, OUT_OF_SCOPE only with a reason.
-Re-run: resynth reconcile <project> --json until the gate reports PASS.
+Read index/RECONCILIATION-INSTRUCTIONS.md and index/claims-index.md.
+Write the groups that need judgement to index/reconciliation.jsonl:
+CORROBORATED when sources agree, SUPERSEDED only with a merge rule and a
+winner, CONFLICT for genuine disagreement which you never resolve,
+OUT_OF_SCOPE only with a reason, and UNIQUE for any claim in a candidate pair.
+Run: resynth reconcile <project> --fill-unique --json until the gate reports
+PASS. It records every other claim as UNIQUE.
 ```
 
 ### Agent prompt for stage 4, synthesis
 
 ```
 Run: resynth synthesise <project> --json
-Replace every todo callout in output/MASTER.md with prose, working only from
-the claims index and the reconciliation decisions. Every paragraph ends with
-provenance markers, for example [S01-C003, S02-C011]. Cite every winning
-claim at least once. Describe each conflict in the Conflicts section citing
-both sides without resolving it. Fill the Gaps section.
+Replace every todo callout in output/MASTER.md with prose. Each callout lists
+its claims with their text and decision, so MASTER.md is the only file you
+need. Every paragraph ends with provenance markers, for example
+[S01-C003, S02-C011]. Cite every winning claim at least once. Describe each
+conflict in the Conflicts section citing both sides without resolving it.
+Fill the Gaps section. Leave the generated appendices alone.
 Run: resynth synth-verify <project> --json and fix every reason until PASS.
 ```
 
