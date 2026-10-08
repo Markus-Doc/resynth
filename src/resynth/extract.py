@@ -11,7 +11,8 @@ from jinja2 import Environment, FileSystemLoader
 
 from . import config
 from .errors import ResynthError
-from .fsutil import iter_jsonl, safe_write
+from . import provenance
+from .fsutil import iter_jsonl, load_yaml, safe_write
 from .gates import require_previous, write_gate
 from .intake import load_sources
 
@@ -28,7 +29,7 @@ REQUIRED_FIELDS = {
     "confidence_as_stated",
     "depends_on",
 }
-OPTIONAL_FIELDS = {"source_locator"}
+OPTIONAL_FIELDS = {"source_locator", "source_excerpt"}
 LOCATOR_KEYS = {"url", "page", "timestamp", "anchor"}
 TIMESTAMP_RE = re.compile(r"^\d{1,2}:\d{2}(:\d{2})?$")
 COVERAGE_MIN_BYTES = 2048
@@ -41,6 +42,7 @@ TEMPLATE_LINE = {
     "claim_type": "fact",
     "topic_tags": ["example-tag"],
     "supporting_quote_location": "Section heading or location reference",
+    "source_excerpt": "Short verbatim phrase copied from the source sentence",
     "confidence_as_stated": "unstated",
     "depends_on": [],
 }
@@ -163,7 +165,23 @@ def validate_claim(obj: dict, sid: str) -> list[str]:
         errors.append("depends_on must be a list of claim ids in SNN-CNNN format")
     if "source_locator" in obj:
         errors.extend(_validate_locator(obj["source_locator"]))
+    if "source_excerpt" in obj:
+        excerpt = obj["source_excerpt"]
+        size = len(provenance.normalise(excerpt)) if isinstance(excerpt, str) else 0
+        if not isinstance(excerpt, str) or size < provenance.EXCERPT_MIN:
+            errors.append(f"source_excerpt must be a verbatim phrase of at least {provenance.EXCERPT_MIN} characters")
+        elif size > provenance.EXCERPT_MAX:
+            errors.append(f"source_excerpt too long, keep it under {provenance.EXCERPT_MAX} characters")
     return errors
+
+
+def excerpts_required(pdir: Path) -> bool:
+    """Projects require a verifiable source_excerpt on every claim unless
+    merge-rules.yaml sets require_source_excerpt: false (legacy projects)."""
+    path = pdir / "merge-rules.yaml"
+    if not path.is_file():
+        return True
+    return load_yaml(path).get("require_source_excerpt", True) is not False
 
 
 def load_all_claims(pdir: Path) -> list[dict]:
@@ -221,10 +239,23 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
             count += 1
             all_claims.append(obj)
         claims_by_source[sid] = count
-        if len(fm["_body"].encode("utf-8")) > COVERAGE_MIN_BYTES and count < COVERAGE_MIN_CLAIMS:
+        if count == 0:
+            # A report that yields nothing usually means its extraction never
+            # ran or failed. A fetched link may legitimately hold nothing.
+            msg = f"{sid}: no claims extracted from this source"
+            (warnings if fm.get("resolved_from") else reasons).append(msg)
+        elif len(fm["_body"].encode("utf-8")) > COVERAGE_MIN_BYTES and count < COVERAGE_MIN_CLAIMS:
             warnings.append(
                 f"{sid}: source over 2KB yielded only {count} claims, check coverage"
             )
+    required = excerpts_required(pdir)
+    for obj in all_claims:
+        if "source_excerpt" not in obj:
+            msg = f"{obj.get('claim_id')}: missing source_excerpt, copy a short verbatim phrase from the source"
+            (reasons if required else warnings).append(msg)
+    records, prov_errors, prov_warnings = provenance.build(sources, all_claims)
+    reasons.extend(prov_errors)
+    warnings.extend(prov_warnings)
     known = set(seen_ids)
     for obj in all_claims:
         for dep in obj.get("depends_on") or []:
@@ -232,7 +263,13 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
                 reasons.append(f"{obj.get('claim_id')}: dangling depends_on reference {dep}")
     if not all_claims and not reasons:
         reasons.append("no claims extracted across any source")
-    checks = {"claims_per_source": claims_by_source, "total_claims": len(all_claims)}
+    checks = {
+        "claims_per_source": claims_by_source,
+        "total_claims": len(all_claims),
+        "provenance": provenance.summary(records),
+    }
+    if not reasons:
+        provenance.write(pdir, records, dry_run=dry_run)
     gate = write_gate(pdir, "02-extract", reasons, checks, warnings=warnings, dry_run=dry_run)
     return {
         "ok": gate["status"] == "PASS",
@@ -240,4 +277,46 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
         "messages": [f"gate 02-extract: {gate['status']}"]
         + [f"FAIL: {r}" for r in reasons]
         + [f"warn: {w}" for w in warnings],
+    }
+
+
+def check_source_claims(project: str, source_id: str) -> dict:
+    """Read-only check of one source's claims file. Writes nothing, so several
+    operators extracting different sources in parallel can each run it."""
+    pdir = config.project_dir(project)
+    sources = {fm["source_id"]: fm for fm in load_sources(pdir)}
+    if source_id not in sources:
+        raise ResynthError(f"unknown source {source_id}")
+    path = pdir / "claims" / f"{source_id}-claims.jsonl"
+    if not path.is_file():
+        raise ResynthError(f"{path.name} missing, run resynth extract {project}")
+    problems: list[str] = []
+    claims: list[dict] = []
+    seen: set[str] = set()
+    required = excerpts_required(pdir)
+    for lineno, _raw, obj, err in iter_jsonl(path):
+        where = f"{path.name}:{lineno}"
+        if err:
+            problems.append(f"{where}: {err}")
+            continue
+        problems.extend(f"{where}: {p}" for p in validate_claim(obj, source_id))
+        if obj.get("claim_id") in seen:
+            problems.append(f"{where}: duplicate claim_id {obj.get('claim_id')}")
+        seen.add(obj.get("claim_id"))
+        if "source_excerpt" not in obj and required:
+            problems.append(f"{where}: missing source_excerpt")
+        claims.append(obj)
+    _records, errors, warnings = provenance.build([sources[source_id]], claims)
+    problems.extend(errors)
+    if not claims:
+        problems.append(f"{path.name}: no claims yet")
+    status = "PASS" if not problems else "FAIL"
+    return {
+        "ok": not problems,
+        "source_id": source_id,
+        "claims": len(claims),
+        "problems": problems,
+        "warnings": warnings,
+        "messages": [f"{source_id} claims check: {status} ({len(claims)} claims)"]
+        + [f"FAIL: {p}" for p in problems] + [f"warn: {w}" for w in warnings],
     }

@@ -17,6 +17,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from concurrent.futures import ThreadPoolExecutor
+
 import yaml
 
 from rich.console import Console
@@ -30,7 +32,8 @@ from .errors import ResynthError
 from .export import run_export
 from .extract import run_extract, run_extract_verify
 from .gates import all_gates
-from .intake import SUPPORTED, run_intake
+from .fsutil import iter_jsonl
+from .intake import SUPPORTED, load_sources, run_intake
 from .project import run_brief, run_init
 from .reconcile import run_reconcile
 from .resolve import preview_targets, run_resolve
@@ -113,42 +116,66 @@ DELEGATED_PROMPTS = {
     ),
     "extract": (
         "You are the RESYNTH operator working in this RESYNTH workspace.\n"
-        "Read projects/{project}/claims/EXTRACTION-INSTRUCTIONS.md and follow it\n"
-        "exactly. For each source file under projects/{project}/sources/, read\n"
-        "only that source and append its claims to the matching\n"
-        "projects/{project}/claims/S<NN>-claims.jsonl file, one JSON object per\n"
-        "line in the documented schema. Restate each claim in your own words,\n"
-        "one claim per line, split compound statements, reuse topic tags across\n"
-        "sources. Record the confidence the source states, not your own.\n"
-        "Edit only the claims jsonl files."
+        "Extract the claims of ONE source: projects/{project}/sources/{source_file}.\n"
+        "Read projects/{project}/claims/EXTRACTION-INSTRUCTIONS.md, then read only\n"
+        "that source. Write its claims to projects/{project}/claims/{sid}-claims.jsonl\n"
+        "below the existing # header lines, one JSON object per line, ids {sid}-C001\n"
+        "upward. Restate each claim in your own words, one claim per line, split\n"
+        "compound statements. Give every claim a source_excerpt: 15 to 300\n"
+        "characters copied exactly from the sentence that states it, leaving out\n"
+        "footnote markers and links. Record the confidence the source states, not\n"
+        "your own. If the file already holds claims, keep the valid ones and fix\n"
+        "or complete them rather than starting again.{tag_hint}\n"
+        "When done, run: {check}\n"
+        "Fix every problem it reports and run it again until it reports PASS.\n"
+        "Edit only {sid}-claims.jsonl."
     ),
     "reconcile": (
         "You are the RESYNTH operator working in this RESYNTH workspace.\n"
-        "Read projects/{project}/index/RECONCILIATION-INSTRUCTIONS.md, the\n"
-        "claims index at projects/{project}/index/claims-index.md and the\n"
-        "flagged pairs in projects/{project}/index/candidates.jsonl. Write\n"
-        "decision groups to projects/{project}/index/reconciliation.jsonl, one\n"
-        "JSON object per line, so that every extracted claim lands in exactly\n"
-        "one group. CORROBORATED when sources agree, UNIQUE for single source\n"
-        "claims, SUPERSEDED only with a rule from merge-rules.yaml and a named\n"
-        "winner, CONFLICT for genuine disagreement which you must never\n"
-        "resolve, OUT_OF_SCOPE only with a one line note. Set decided_by to\n"
-        "your CLI name. Edit only reconciliation.jsonl."
+        "Read projects/{project}/index/RECONCILIATION-INSTRUCTIONS.md and the\n"
+        "claims index at projects/{project}/index/claims-index.md, which lists\n"
+        "every claim once. Write decision groups to\n"
+        "projects/{project}/index/reconciliation.jsonl, one JSON object per line.\n"
+        "Write only the groups that need judgement: CORROBORATED when sources\n"
+        "agree, SUPERSEDED only with a rule from merge-rules.yaml and a named\n"
+        "winner, CONFLICT for genuine disagreement which you must never resolve,\n"
+        "OUT_OF_SCOPE only with a one line note, and UNIQUE for any claim the\n"
+        "instructions list in a candidate pair. Set decided_by to your CLI name.\n"
+        "When done, run: {check}\n"
+        "It records every remaining claim as UNIQUE. Fix every reason it reports\n"
+        "and run it again until the gate reports PASS. Edit only reconciliation.jsonl."
     ),
     "synthesise": (
         "You are the RESYNTH operator working in this RESYNTH workspace.\n"
-        "Edit projects/{project}/output/MASTER.md and replace every todo\n"
-        "callout with final prose. Work only from\n"
-        "projects/{project}/index/claims-index.md and\n"
-        "projects/{project}/index/reconciliation.jsonl, never from the raw\n"
-        "sources. Every paragraph must end with provenance markers listing the\n"
-        "claim ids it rests on, for example [S01-C003, S02-C011]. Cite every\n"
-        "claim from every CORROBORATED and UNIQUE group and every SUPERSEDED\n"
-        "winner at least once. Describe each CONFLICT in the Conflicts section\n"
-        "citing both sides without resolving it. Fill the Gaps section.\n"
+        "Edit projects/{project}/output/MASTER.md and replace every todo callout\n"
+        "with final prose. Each callout lists the claims to cover with their text\n"
+        "and decision, so work from MASTER.md alone, never from the raw sources.\n"
+        "Every paragraph must end with provenance markers listing the claim ids it\n"
+        "rests on, for example [S01-C003, S02-C011]. Cite every listed claim at\n"
+        "least once. Describe each CONFLICT in the Conflicts section citing both\n"
+        "sides without resolving it. Fill the Gaps section. Do not edit anything\n"
+        "from '## Appendix: Source Register' down, RESYNTH generates it.\n"
+        "When done, run: {check}\n"
+        "Fix every reason it reports and run it again until the gate reports PASS.\n"
         "Edit only MASTER.md."
     ),
 }
+
+# Commands a delegated operator runs to check its own work in-session, which
+# is far cheaper than a fresh session re-reading everything on a retry.
+CHECK_COMMANDS = {
+    "extract": "check-claims {project} {sid}",
+    "reconcile": "reconcile {project} --fill-unique --json",
+    "synthesise": "synth-verify {project} --json",
+}
+
+
+def _check_command(key: str, **fields) -> str:
+    """The self-check command for a stage, using this interpreter so it works
+    wherever RESYNTH is installed, with or without resynth on PATH."""
+    if key not in CHECK_COMMANDS:
+        return ""
+    return f'"{sys.executable}" -m resynth ' + CHECK_COMMANDS[key].format(**fields)
 
 AGENT_PROMPTS = {
     "prompts": (
@@ -159,21 +186,23 @@ AGENT_PROMPTS = {
     ),
     "extract": (
         "Read projects/<project>/claims/EXTRACTION-INSTRUCTIONS.md and follow it\n"
-        "exactly. For each source under sources/, append its claims to the matching\n"
-        "claims/S<NN>-claims.jsonl file, one JSON object per line. Then run\n"
-        "resynth extract-verify <project> and fix every violation until PASS."
+        "exactly. Work one source at a time: read only that source and write its\n"
+        "claims to the matching claims/S<NN>-claims.jsonl file, one JSON object per\n"
+        "line, each with a verbatim source_excerpt. Check each source with\n"
+        "resynth check-claims <project> S<NN>, then run resynth extract-verify\n"
+        "<project> and fix every violation until PASS."
     ),
     "reconcile": (
-        "Read projects/<project>/index/RECONCILIATION-INSTRUCTIONS.md, the claims\n"
-        "index and candidates.jsonl. Write decision groups to\n"
-        "index/reconciliation.jsonl so every claim lands in exactly one group.\n"
-        "Then run resynth reconcile <project> until the gate reports PASS."
+        "Read projects/<project>/index/RECONCILIATION-INSTRUCTIONS.md and the claims\n"
+        "index. Write the groups that need judgement to index/reconciliation.jsonl,\n"
+        "then run resynth reconcile <project> --fill-unique until the gate reports PASS."
     ),
     "synthesise": (
         "Open projects/<project>/output/MASTER.md and replace every todo callout\n"
-        "with prose, working only from the claims index and decisions. End every\n"
-        "paragraph with its provenance markers, for example [S01-C003]. Then run\n"
-        "resynth synth-verify <project> and fix every reason until PASS."
+        "with prose. Each callout lists its claims with their text. End every\n"
+        "paragraph with its provenance markers, for example [S01-C003]. Leave the\n"
+        "generated appendices alone. Then run resynth synth-verify <project> and\n"
+        "fix every reason until PASS."
     ),
 }
 
@@ -425,7 +454,10 @@ def _check_for_update() -> None:
 
 def _last_save_note(pdir: Path, started: float) -> str:
     try:
-        latest = max((f.stat().st_mtime for f in pdir.rglob("*") if f.is_file()), default=0.0)
+        # Only the folders an operator writes to, not sources or _trash,
+        # which can hold thousands of files and are polled every two seconds.
+        files = [f for d in ("claims", "index", "output", "prompts") for f in (pdir / d).glob("*")]
+        latest = max((f.stat().st_mtime for f in files if f.is_file()), default=0.0)
     except OSError:
         return ""
     if latest < started:
@@ -476,19 +508,10 @@ def _run_with_progress(ai_cfg: dict, prompt: str, root: Path, pdir: Path, *, mod
 def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[str],
               instruction: str = "", control: SessionControl | None = None) -> str:
     """Run one operator task through the configured AI CLI. True on rc 0."""
-    prompt = DELEGATED_PROMPTS[key].format(project=project)
-    if feedback:
-        prompt += (
-            "\n\nA previous attempt failed verification with these reasons, fix them:\n"
-            + "\n".join(f"- {r}" for r in feedback[:15])
-        )
-    if instruction:
-        prompt += f"\n\nOperator instruction for this task (follow it unless it conflicts with RESYNTH's evidence and provenance rules):\n{instruction}"
-        # Fable is an explicitly temporary, per-task request. Do not write it
-        # to operator.yaml or let it silently become a fallback policy.
-        if "fable" in instruction.lower() and ai_cfg.get("cli") == "claude":
-            ai_cfg = dict(ai_cfg)
-            ai_cfg["model"] = "claude-fable-5"
+    if key == "extract":
+        return _delegate_extract(project, root, ai_cfg, feedback, instruction, control)
+    prompt, ai_cfg = _build_prompt(key, ai_cfg, feedback, instruction, project=project,
+                                   check=_check_command(key, project=project))
     console.print(
         f"\n[cyan]Handing this step to {ai_cfg['cli']} "
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
@@ -535,6 +558,170 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
     elif rc != 0:
         console.print(f"[red]{ai_cfg['cli']} exited with code {rc}.[/red]")
     return "ok" if rc == 0 else "failed"
+
+
+def _build_prompt(key: str, ai_cfg: dict, feedback: list[str], instruction: str, **fields) -> tuple[str, dict]:
+    """The delegated prompt for a stage, with retry feedback and any one-off
+    operator instruction appended. Returns the prompt and the route to use."""
+    prompt = DELEGATED_PROMPTS[key].format(**fields)
+    if feedback:
+        prompt += (
+            "\n\nA previous attempt failed verification with these reasons, fix them:\n"
+            + "\n".join(f"- {r}" for r in feedback[:15])
+        )
+    if instruction:
+        prompt += f"\n\nOperator instruction for this task (follow it unless it conflicts with RESYNTH's evidence and provenance rules):\n{instruction}"
+        # Fable is an explicitly temporary, per-task request. Do not write it
+        # to operator.yaml or let it silently become a fallback policy.
+        if "fable" in instruction.lower() and ai_cfg.get("cli") == "claude":
+            ai_cfg = dict(ai_cfg)
+            ai_cfg["model"] = "claude-fable-5"
+    return prompt, ai_cfg
+
+
+def _has_claims(pdir: Path, sid: str) -> bool:
+    path = pdir / "claims" / f"{sid}-claims.jsonl"
+    if not path.is_file():
+        return False
+    return any(line.strip().startswith("{") for line in path.read_text(encoding="utf-8").splitlines())
+
+
+def _reasons_for(sid: str, reasons: list[str]) -> list[str]:
+    """Gate reasons that belong to one source: its claims file, its claim
+    ids, or the source itself."""
+    return [r for r in reasons if r.startswith((f"{sid}-", f"{sid}:", f"{sid} ")) or f"{sid}-C" in r]
+
+
+def _extract_targets(pdir: Path, feedback: list[str]) -> list[dict]:
+    """Sources that still need an extraction pass. With feedback, the sources
+    it points at, or every source when it names none (an escalation after a
+    review). Without feedback, the sources that have no claims yet."""
+    sources = load_sources(pdir)
+    if feedback:
+        hit = [fm for fm in sources if _reasons_for(fm["source_id"], feedback)]
+        return hit or sources
+    return [fm for fm in sources if not _has_claims(pdir, fm["source_id"])]
+
+
+def _tag_vocabulary(pdir: Path, limit: int = 30) -> list[str]:
+    """Topic tags already in use, most frequent first, so parallel extractions
+    of different sources reuse the same tags."""
+    counts: dict[str, int] = {}
+    for f in sorted((pdir / "claims").glob("S*-claims.jsonl")):
+        for _n, _raw, obj, err in iter_jsonl(f):
+            if err or not isinstance(obj.get("topic_tags"), list):
+                continue
+            for tag in obj["topic_tags"]:
+                if isinstance(tag, str):
+                    counts[tag] = counts.get(tag, 0) + 1
+    return [t for t, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))][:limit]
+
+
+def _extract_parallelism(ai_cfg: dict) -> int:
+    profile = ai_cfg.get("_profile") or {}
+    try:
+        return max(1, int((profile.get("parallel") or {}).get("extract", 3)))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _delegate_extract(project: str, root: Path, ai_cfg: dict, feedback: list[str],
+                      instruction: str = "", control: SessionControl | None = None) -> str:
+    """Extract claims with one AI task per source instead of one task reading
+    every source. Each task holds only its own source in context, checks its
+    own file before finishing, and a retry re-runs only the failing sources.
+    The first source runs alone so its topic tags seed the vocabulary for the
+    rest, which then run in parallel."""
+    pdir = config.project_dir(project)
+    targets = _extract_targets(pdir, feedback)
+    if not targets:
+        return "ok"
+    label = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {}).get("label", ai_cfg["cli"])
+    workers = _extract_parallelism(ai_cfg)
+    console.print(
+        f"\n[cyan]Handing extraction of {len(targets)} source(s) to {label} "
+        f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, effort {ai_cfg.get('effort', 'high')}, "
+        f"up to {workers} at once)...[/cyan]\n"
+    )
+    lock = threading.Lock()
+    shared: dict = {"directive": None}
+    state = {fm["source_id"]: "waiting" for fm in targets}
+    started = time.time()
+
+    def should_stop():
+        with lock:
+            if shared["directive"] is None and control and project:
+                directive = _queued_directive(project, control)
+                if directive:
+                    control.interrupted = directive
+                    shared["directive"] = directive
+            return shared["directive"]
+
+    def run_one(fm: dict) -> tuple[str, operator_ai.TaskResult]:
+        sid = fm["source_id"]
+        tags = _tag_vocabulary(pdir)
+        hint = f"\nPrefer these topic tags where they fit, so sources line up: {', '.join(tags)}." if tags else ""
+        prompt, route = _build_prompt(
+            "extract", ai_cfg, _reasons_for(sid, feedback), instruction, project=project,
+            sid=sid, source_file=fm["_file"], tag_hint=hint,
+            check=_check_command("extract", project=project, sid=sid),
+        )
+        with lock:
+            state[sid] = "running"
+        result = operator_ai.run_task(route, prompt, root, on_line=lambda _ln: None,
+                                      should_stop=should_stop if control else None)
+        if (route.get("cli") == "claude" and not result.interrupted
+                and operator_ai.is_context_exhaustion(result.output) and route.get("_profile")):
+            fallback = operator_ai.route_for(route["_profile"], "fallback", "fallback")
+            fallback["effort"] = route.get("effort", "high")
+            with lock:
+                state[sid] = "running (fallback)"
+            result = operator_ai.run_task(fallback, prompt, root, on_line=lambda _ln: None,
+                                          should_stop=should_stop if control else None)
+        with lock:
+            state[sid] = "done" if result.exit_code == 0 else f"failed (exit {result.exit_code})"
+        return sid, result
+
+    results: dict[str, operator_ai.TaskResult] = {}
+    with console.status(f"[cyan]{label} is extracting claims...[/cyan]") as status:
+        stop = threading.Event()
+
+        def tick():
+            while not stop.wait(2):
+                m, s = divmod(int(time.time() - started), 60)
+                with lock:
+                    summary = ", ".join(f"{sid} {st}" for sid, st in state.items())
+                status.update(f"[cyan]{m}m {s:02d}s: {summary} (Ctrl+C to stop)[/cyan]")
+
+        ticker = threading.Thread(target=tick, daemon=True)
+        ticker.start()
+        try:
+            seed, rest = targets[0], targets[1:]
+            sid, result = run_one(seed)
+            results[sid] = result
+            if rest and not shared["directive"]:
+                with ThreadPoolExecutor(max_workers=min(workers, len(rest))) as pool:
+                    for sid, result in pool.map(run_one, rest):
+                        results[sid] = result
+        finally:
+            stop.set()
+            ticker.join(timeout=5)
+    for sid in sorted(results):
+        console.print(f"  {sid}: {state[sid]}")
+    if time.time() - started > 90:
+        _notify(f"{label} has finished extracting claims. Come back to the terminal.")
+    if shared["directive"]:
+        action = _apply_directive(project, control, shared["directive"])
+        console.print(f"[yellow]AI extraction interrupted for operator directive: {shared['directive']['directive']}[/yellow]")
+        return "stopped" if action == "stop" else "interrupted"
+    codes = [r.exit_code for r in results.values()]
+    if codes and all(c == 127 for c in codes):
+        known = operator_ai.KNOWN_CLIS.get(ai_cfg["cli"], {})
+        _panel("Your AI assistant could not be launched",
+               f"I could not launch {known.get('label', ai_cfg['cli'])} on this machine, so I will guide\n"
+               "you through this step manually instead.")
+        return "failed"
+    return "ok" if any(c == 0 for c in codes) else "failed"
 
 
 def _author_route(profile: dict, stage: str, role: str = "author") -> dict:
@@ -728,7 +915,7 @@ def _step_operator(
             if outcome != "ok":
                 break
             control.next_instruction = ""
-            result = verify()
+            result = verify(delegated=True)
             if result["ok"]:
                 prior = None
                 while True:
@@ -749,7 +936,7 @@ def _step_operator(
                         break
                     feedback = [str(c.get("concern", c)) for c in review.get("concerns", [])] if review else []
                     _delegate(project, root, route, key, feedback, control=control)
-                    result = verify()
+                    result = verify(delegated=True)
                     if not result["ok"]:
                         _show_reasons(result); break
                     prior = review
@@ -798,7 +985,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "Each claim from each report goes in as one line, following\n"
                 "the instructions file I am opening now.",
                 pdir / "claims" / "EXTRACTION-INSTRUCTIONS.md",
-                lambda: run_extract_verify(project),
+                lambda delegated=False: run_extract_verify(project),
                 control,
             ):
                 return
@@ -815,7 +1002,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "superseded, conflict or out of scope. The instructions file\n"
                 "I am opening explains each one.",
                 pdir / "index" / "RECONCILIATION-INSTRUCTIONS.md",
-                lambda: run_reconcile(project),
+                lambda delegated=False: run_reconcile(project, fill=delegated),
                 control,
             ):
                 return
@@ -831,7 +1018,7 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 "The master document scaffold is ready. Replace every todo\n"
                 "callout with the final prose, keeping the provenance markers.",
                 pdir / "output" / "MASTER.md",
-                lambda: run_synth_verify(project),
+                lambda delegated=False: run_synth_verify(project),
                 control,
             ):
                 return

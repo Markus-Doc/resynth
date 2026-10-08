@@ -14,6 +14,9 @@
 > Claims to cover: [{{ section.claim_ids | join(', ') }}]
 > Write paragraphs below this callout, then delete it. Every paragraph
 > must end with its provenance markers, for example [{{ section.claim_ids[0] }}].
+{% for cid in section.claim_ids %}
+> - {{ cid }} ({{ claims[cid].decision }}{% if claims[cid].partners %} with {{ claims[cid].partners | join(', ') }}{% endif %}): {{ claims[cid].claim_text }}
+{% endfor %}
 
 {% endfor %}
 ## Conflicts
@@ -23,6 +26,9 @@
 > [!todo] Conflict {{ c.group_id }} requires an operator description
 > Claims in disagreement: [{{ c.claim_ids | join(', ') }}]
 > Describe the disagreement and cite both sides. Do not resolve it.
+{% for cid in c.claim_ids %}
+> - {{ cid }}: {{ claims[cid].claim_text }}
+{% endfor %}
 
 {% endfor %}
 {% else %}
@@ -33,10 +39,3 @@ No conflicts were recorded during reconciliation.
 
 > [!todo] Operator must list known gaps or state that none were identified.
 
-## Appendix: Source Register
-
-| Source | Title | Type | Authority | Authored | Link | Content hash |
-| --- | --- | --- | --- | --- | --- | --- |
-{% for s in sources %}
-| {{ s.source_id }} | {{ s.title }} | {{ s.source_type }} | {{ s.authority_tier }} | {{ s.date_authored }} | {{ s.url or "-" }} | {{ s.sha256_short }} |
-{% endfor %}

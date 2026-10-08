@@ -1,5 +1,10 @@
 """Stage 4: SYNTHESIS. Generates the master document scaffold and
-verifies the operator's prose against the reconciliation record."""
+verifies the operator's prose against the reconciliation record.
+
+MASTER.md has two parts. The body, up to the Gaps section, is operator
+prose. The appendices (source register and claim provenance) are generated
+by RESYNTH and refreshed on every synthesise and synth-verify, so they always
+match the sources, claims and provenance index on disk."""
 
 from __future__ import annotations
 
@@ -9,7 +14,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from . import config
-from .errors import ResynthError
+from . import provenance
 from .extract import load_all_claims
 from .fsutil import safe_write
 from .gates import require_previous, write_gate
@@ -17,7 +22,9 @@ from .intake import load_sources
 from .reconcile import load_decisions, merge_rules
 
 CITE_RE = re.compile(r"S\d{2}-C\d{3}")
-SPECIAL_SECTIONS = {"Conflicts", "Gaps", "Appendix: Source Register"}
+APPENDIX_MARK = "## Appendix: Source Register"
+APPENDICES = {"Appendix: Source Register", "Appendix: Claim Provenance"}
+SPECIAL_SECTIONS = {"Conflicts", "Gaps"} | APPENDICES
 
 
 def _jinja() -> Environment:
@@ -75,39 +82,111 @@ def _plan(pdir: Path) -> dict:
     }
 
 
+def _claim_briefs(plan: dict) -> dict[str, dict]:
+    """Claim text plus decision context, so the scaffold alone is enough to
+    write each section without opening the claims index or decision log."""
+    briefs = {}
+    for d in plan["decisions"]:
+        for cid in d["claim_ids"]:
+            others = [c for c in d["claim_ids"] if c != cid] if d["decision"] != "UNIQUE" else []
+            briefs[cid] = {
+                "claim_text": plan["claims"][cid]["claim_text"],
+                "decision": d["decision"],
+                "partners": others,
+            }
+    return briefs
+
+
+def _source_rows(sources: list[dict]) -> list[dict]:
+    return [
+        {
+            "source_id": fm["source_id"],
+            "title": fm["title"],
+            "source_type": fm.get("source_type") or "report",
+            "url": fm.get("url"),
+            "authority_tier": fm["authority_tier"],
+            "date_authored": fm["date_authored"],
+            "sha256_short": str(fm["sha256"])[:12],
+        }
+        for fm in sources
+    ]
+
+
+def _cell(text: str) -> str:
+    return (text or "").replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _provenance_rows(pdir: Path, plan: dict) -> list[dict]:
+    records = provenance.load(pdir)
+    decision_of = {cid: d for d in plan["decisions"] for cid in d["claim_ids"]}
+    rows = []
+    for cid in sorted(plan["claims"]):
+        rec = records.get(cid)
+        d = decision_of.get(cid)
+        decision = f"{d['decision']} {d['group_id']}" if d else "undecided"
+        if not rec:
+            rows.append({"claim_id": cid, "decision": decision, "where": f"{cid[:3]}, not located",
+                         "excerpt": "-", "evidence": "no source_excerpt recorded"})
+            continue
+        where = f"{rec['source_id']} {provenance.location_label(rec)}"
+        if rec.get("section"):
+            where += f", {rec['section']}"
+        evidence = "<br>".join(provenance.citation_label(c) for c in rec["citations"])
+        rows.append({
+            "claim_id": cid,
+            "decision": decision,
+            "where": _cell(where),
+            "excerpt": '"' + _cell(rec["source_excerpt"]) + '"',
+            "evidence": evidence or "none at this passage, the source's own analysis",
+        })
+    return rows
+
+
+def render_appendices(pdir: Path, plan: dict | None = None) -> str:
+    plan = plan or _plan(pdir)
+    return _jinja().get_template("master-appendix.md.j2").render(
+        sources=_source_rows(load_sources(pdir)),
+        provenance_rows=_provenance_rows(pdir, plan),
+    )
+
+
+def with_appendices(text: str, appendices: str) -> str:
+    """Replace everything from the source register heading down with freshly
+    generated appendices, keeping the operator's body untouched."""
+    cut = text.find(APPENDIX_MARK)
+    body = text if cut < 0 else text[:cut]
+    return body.rstrip("\n") + "\n\n" + appendices
+
+
 def run_synthesise(project: str, dry_run: bool = False, force: bool = False) -> dict:
     pdir = config.project_dir(project)
     require_previous(pdir, "04-synthesis")
     plan = _plan(pdir)
     sources = load_sources(pdir)
     master_path = pdir / "output" / "MASTER.md"
+    appendices = render_appendices(pdir, plan)
     scaffold = _jinja().get_template("master.md.j2").render(
         project=project,
-        sources=[
-            {
-                "source_id": fm["source_id"],
-                "title": fm["title"],
-                "source_type": fm.get("source_type") or "report",
-                "url": fm.get("url"),
-                "authority_tier": fm["authority_tier"],
-                "date_authored": fm["date_authored"],
-                "sha256_short": str(fm["sha256"])[:12],
-            }
-            for fm in sources
-        ],
+        sources=_source_rows(sources),
         rules=plan["rules"].get("rules", []),
         sections=plan["sections"],
         conflicts=plan["conflicts"],
+        claims=_claim_briefs(plan),
     )
-    if master_path.exists() and master_path.read_text(encoding="utf-8") != scaffold and not force:
-        return {
-            "ok": True,
-            "events": [{"file": "MASTER.md", "action": "kept-existing"}],
-            "messages": [
-                "MASTER.md already contains operator work, left untouched.",
-                "Use --force to regenerate, the prior version moves to _trash.",
-            ],
-        }
+    scaffold = with_appendices(scaffold, appendices)
+    if master_path.exists() and not force:
+        existing = master_path.read_text(encoding="utf-8")
+        if existing != scaffold:
+            outcome = safe_write(master_path, with_appendices(existing, appendices), pdir, dry_run=dry_run)
+            return {
+                "ok": True,
+                "events": [{"file": "MASTER.md", "action": "kept-existing"}],
+                "messages": [
+                    "MASTER.md already contains operator work, the body was left untouched.",
+                    f"Generated appendices: {outcome}.",
+                    "Use --force to regenerate, the prior version moves to _trash.",
+                ],
+            }
     outcome = safe_write(master_path, scaffold, pdir, dry_run=dry_run)
     return {
         "ok": True,
@@ -154,7 +233,8 @@ def run_synth_verify(project: str, dry_run: bool = False) -> dict:
         reasons.append("output/MASTER.md missing, run resynth synthesise")
         gate = write_gate(pdir, "04-synthesis", reasons, {}, dry_run=dry_run)
         return {"ok": False, "gate": gate, "messages": [f"gate 04-synthesis: {gate['status']}"]}
-    text = master_path.read_text(encoding="utf-8")
+    text = with_appendices(master_path.read_text(encoding="utf-8"), render_appendices(pdir, plan))
+    safe_write(master_path, text, pdir, dry_run=dry_run)
     if "[!todo]" in text:
         reasons.append("operator todo callouts remain in MASTER.md")
     sections = _split_sections(text)
@@ -163,13 +243,11 @@ def run_synth_verify(project: str, dry_run: bool = False) -> dict:
         if required not in headings:
             reasons.append(f"mandatory section '{required}' missing")
     cited: set[str] = set()
-    section_of: dict[str, str] = {}
     for heading, content in sections:
-        if heading == "Appendix: Source Register":
+        if heading in APPENDICES:
             continue
         for cid in CITE_RE.findall(content):
             cited.add(cid)
-            section_of.setdefault(cid, heading or "preamble")
         if heading and heading not in SPECIAL_SECTIONS:
             prose = [b for b in _blocks(content) if _is_prose(b)]
             if not prose:
@@ -215,7 +293,7 @@ def cited_locations(pdir: Path) -> dict[str, str]:
         return {}
     out: dict[str, str] = {}
     for heading, content in _split_sections(master_path.read_text(encoding="utf-8")):
-        if heading == "Appendix: Source Register":
+        if heading in APPENDICES:
             continue
         for cid in CITE_RE.findall(content):
             out.setdefault(cid, heading or "preamble")

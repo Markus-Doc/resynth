@@ -18,6 +18,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "recommendation",
             "topic_tags": ["hashing-algorithms"],
             "supporting_quote_location": "Hashing algorithms",
+            "source_excerpt": "identifies Argon2id as the preferred algorithm for password hashing in new systems",
             "confidence_as_stated": "unstated",
         },
         {
@@ -26,6 +27,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "recommendation",
             "topic_tags": ["hashing-algorithms", "work-factor"],
             "supporting_quote_location": "Hashing algorithms",
+            "source_excerpt": "a bcrypt work factor of at least 12 is required for new deployments",
             "confidence_as_stated": "high",
         },
         {
@@ -34,6 +36,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "fact",
             "topic_tags": ["storage-policy"],
             "supporting_quote_location": "Storage policy",
+            "source_excerpt": "Plaintext storage of passwords is prohibited under every framework reviewed",
             "confidence_as_stated": "high",
         },
         {
@@ -42,6 +45,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "recommendation",
             "topic_tags": ["key-protection"],
             "supporting_quote_location": "Key protection",
+            "source_excerpt": "an additional secret pepper applied before hashing",
             "confidence_as_stated": "unstated",
         },
     ],
@@ -52,6 +56,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "finding",
             "topic_tags": ["hashing-algorithms"],
             "supporting_quote_location": "What we run in production",
+            "source_excerpt": "Argon2id is the preferred password hashing algorithm across our fleet",
             "confidence_as_stated": "medium",
         },
         {
@@ -60,6 +65,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "finding",
             "topic_tags": ["hashing-algorithms", "work-factor"],
             "supporting_quote_location": "What we run in production",
+            "source_excerpt": "a work factor of 10 is sufficient and higher values caused unacceptable login latency",
             "confidence_as_stated": "medium",
         },
         {
@@ -68,6 +74,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "fact",
             "topic_tags": ["storage-policy"],
             "supporting_quote_location": "Policy reminders",
+            "source_excerpt": "Plaintext password storage is forbidden in all environments",
             "confidence_as_stated": "high",
         },
         {
@@ -76,6 +83,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "procedure",
             "topic_tags": ["migration"],
             "supporting_quote_location": "Migration practice",
+            "source_excerpt": "rehashing each password at the user's next successful login",
             "confidence_as_stated": "medium",
         },
     ],
@@ -86,6 +94,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "finding",
             "topic_tags": ["storage-policy"],
             "supporting_quote_location": "Findings",
+            "source_excerpt": "stored passwords hashed, never in plaintext",
             "confidence_as_stated": "high",
         },
         {
@@ -94,6 +103,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "metric",
             "topic_tags": ["abuse-prevention"],
             "supporting_quote_location": "Findings",
+            "source_excerpt": "successful credential stuffing attempts fell by 90 percent",
             "confidence_as_stated": "high",
         },
         {
@@ -102,6 +112,7 @@ CLAIMS: dict[str, list[dict]] = {
             "claim_type": "recommendation",
             "topic_tags": ["monitoring"],
             "supporting_quote_location": "Recommendations",
+            "source_excerpt": "Continuous monitoring of authentication failure rates should be added",
             "confidence_as_stated": "unstated",
         },
     ],

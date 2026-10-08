@@ -8,3 +8,8 @@ checks:
     S02: 4
     S03: 3
   total_claims: 11
+  provenance:
+    claims_located: 11
+    cited: 0
+    unresolved: 0
+    uncited: 11

@@ -22,6 +22,7 @@ from . import project as project_mod
 from . import reconcile as reconcile_mod
 from . import resolve as resolve_mod
 from . import synthesise as synth_mod
+from . import trace as trace_mod
 from . import updater as updater_mod
 from .errors import ResynthError
 from .gates import all_gates
@@ -201,12 +202,42 @@ def extract_verify(project, as_json, dry_run):
     _run("extract-verify", project, as_json, dry_run, extract_mod.run_extract_verify, project, dry_run=dry_run)
 
 
+@main.command("check-claims")
+@click.argument("project")
+@click.argument("source_id")
+@common
+def check_claims(project, source_id, as_json, dry_run):
+    """Read-only check of one source's claims, including excerpt verification."""
+    _run("check-claims", project, as_json, dry_run, extract_mod.check_source_claims, project, source_id.upper())
+
+
 @main.command()
 @click.argument("project")
+@click.option("--status", type=click.Choice(["cited", "unresolved", "uncited"]), default=None,
+              help="Also list every claim with this evidence status.")
 @common
-def reconcile(project, as_json, dry_run):
+def provenance(project, status, as_json, dry_run):
+    """Summarise how the project's claims trace back to their sources."""
+    _run("provenance", project, as_json, dry_run, trace_mod.run_provenance_report, project, status)
+
+
+@main.command()
+@click.argument("project")
+@click.argument("claim_id")
+@common
+def trace(project, claim_id, as_json, dry_run):
+    """Show where one claim came from: source, line, excerpt and cited evidence."""
+    _run("trace", project, as_json, dry_run, trace_mod.run_trace, project, claim_id)
+
+
+@main.command()
+@click.argument("project")
+@click.option("--fill-unique", "fill", is_flag=True,
+              help="Record every undecided claim not in a candidate pair as UNIQUE.")
+@common
+def reconcile(project, fill, as_json, dry_run):
     """Stage 3: build the claims index, flag candidates, evaluate decisions."""
-    _run("reconcile", project, as_json, dry_run, reconcile_mod.run_reconcile, project, dry_run=dry_run)
+    _run("reconcile", project, as_json, dry_run, reconcile_mod.run_reconcile, project, dry_run=dry_run, fill=fill)
 
 
 @main.command()

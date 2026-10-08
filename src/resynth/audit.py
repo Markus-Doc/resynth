@@ -14,6 +14,8 @@ from .extract import load_all_claims
 from .fsutil import dump_yaml, safe_write, sha256_text
 from .gates import require_gate, require_previous, write_gate
 from .intake import load_sources
+from . import provenance
+from .extract import excerpts_required
 from .reconcile import load_decisions
 from .synthesise import cited_locations, winning_claims
 
@@ -50,6 +52,19 @@ def run_audit(project: str, dry_run: bool = False) -> dict:
     for cid in dropped:
         reasons.append(f"claim {cid} dropped without an OUT_OF_SCOPE decision")
 
+    # Provenance must still match the sources and claims on disk. A stale
+    # index means a claim or source changed after extract-verify passed.
+    rebuilt, prov_errors, _ = provenance.build(sources, claims)
+    rebuilt_by_id = {r["claim_id"]: r for r in rebuilt}
+    stored = provenance.load(pdir)
+    reasons.extend(prov_errors)
+    if rebuilt_by_id != stored:
+        reasons.append("index/provenance.jsonl is stale, run resynth extract-verify to rebuild it")
+    if excerpts_required(pdir):
+        for c in claims:
+            if c["claim_id"] not in rebuilt_by_id:
+                reasons.append(f"claim {c['claim_id']} has no verified location in its source")
+
     winners = winning_claims(decisions)
     locations = cited_locations(pdir)
     matrix = []
@@ -74,6 +89,8 @@ def run_audit(project: str, dry_run: bool = False) -> dict:
                 "group_id": d["group_id"] if d else "",
                 "location": locations.get(cid, ""),
                 "status": status,
+                "origin": provenance.location_label(rebuilt_by_id[cid]) if cid in rebuilt_by_id else "not located",
+                "evidence": rebuilt_by_id[cid]["status"] if cid in rebuilt_by_id else "-",
             }
         )
         stats = per_source.setdefault(c["source_id"], {"extracted": 0, "accounted": 0})
@@ -88,12 +105,14 @@ def run_audit(project: str, dry_run: bool = False) -> dict:
         drift=sorted(drift.items()),
         winners_total=len(winners),
         conflicts_total=sum(1 for d in decisions if d["decision"] == "CONFLICT"),
+        provenance=provenance.summary(rebuilt),
     )
     safe_write(pdir / "output" / "AUDIT-REPORT.md", report, pdir, dry_run=dry_run)
     checks = {
         "coverage": {sid: f"{s['accounted']}/{s['extracted']}" for sid, s in sorted(per_source.items())},
         "drift": drift,
         "dropped_claims": dropped,
+        "provenance": provenance.summary(rebuilt),
     }
     gate = write_gate(pdir, "05-audit", reasons, checks, dry_run=dry_run)
     return {
@@ -137,6 +156,9 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
     targets += sorted((pdir / "sources").glob("S*.md"))
     targets += sorted((pdir / "claims").glob("S*-claims.jsonl"))
     targets += [pdir / "index" / "reconciliation.jsonl", pdir / "merge-rules.yaml"]
+    prov_file = pdir / "index" / provenance.PROVENANCE_FILE
+    if prov_file.is_file():
+        targets.append(prov_file)
     for t in targets:
         if not t.is_file():
             raise ResynthError(f"seal target missing: {t}")

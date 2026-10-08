@@ -152,7 +152,8 @@ def test_coverage_heuristic_warns(ws, tmp_path):
     run_extract("cov")
     pdir = config.project_dir("cov")
     (pdir / "claims" / "S01-claims.jsonl").write_text(
-        json.dumps(VALID) + "\n", encoding="utf-8"
+        json.dumps(dict(VALID, source_excerpt="substantial content here substantial content")) + "\n",
+        encoding="utf-8",
     )
     result = run_extract_verify("cov")
     assert result["ok"]
@@ -198,10 +199,13 @@ def _video_project(project="vid"):
     return pdir
 
 
+VIDEO_EXCERPT = "The speaker recommends Argon2id throughout"
+
+
 def test_verify_warns_video_claim_without_timestamp(ws):
     pdir = _video_project()
     (pdir / "claims" / "S01-claims.jsonl").write_text(
-        json.dumps(VALID) + "\n", encoding="utf-8"
+        json.dumps(dict(VALID, source_excerpt=VIDEO_EXCERPT)) + "\n", encoding="utf-8"
     )
     result = run_extract_verify("vid")
     assert result["ok"]
@@ -213,7 +217,7 @@ def test_verify_warns_video_claim_without_timestamp(ws):
 
 def test_verify_warns_locator_url_mismatch(ws):
     pdir = _video_project()
-    claim = dict(VALID)
+    claim = dict(VALID, source_excerpt=VIDEO_EXCERPT)
     claim["source_locator"] = {"timestamp": "00:14:32", "url": "https://elsewhere.example.com"}
     (pdir / "claims" / "S01-claims.jsonl").write_text(
         json.dumps(claim) + "\n", encoding="utf-8"
@@ -227,7 +231,7 @@ def test_verify_warns_locator_url_mismatch(ws):
 
 def test_verify_no_url_warning_when_locator_url_matches(ws):
     pdir = _video_project()
-    claim = dict(VALID)
+    claim = dict(VALID, source_excerpt=VIDEO_EXCERPT)
     claim["source_locator"] = {"timestamp": "00:14:32", "url": VIDEO_URL}
     (pdir / "claims" / "S01-claims.jsonl").write_text(
         json.dumps(claim) + "\n", encoding="utf-8"
@@ -235,3 +239,74 @@ def test_verify_no_url_warning_when_locator_url_matches(ws):
     result = run_extract_verify("vid")
     assert result["ok"]
     assert not any("locator url" in w for w in result["gate"]["warnings"])
+
+
+def _rewrite_first_claim(pdir, **changes):
+    path = pdir / "claims" / "S01-claims.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    i = next(n for n, l in enumerate(lines) if l.startswith("{"))
+    claim = json.loads(lines[i])
+    for key, value in changes.items():
+        if value is None:
+            claim.pop(key, None)
+        else:
+            claim[key] = value
+    lines[i] = json.dumps(claim)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_excerpt_not_in_source_fails_gate(ws):
+    pdir = to_extracted()
+    _rewrite_first_claim(pdir, source_excerpt="bcrypt is banned in every framework reviewed")
+    result = run_extract_verify("demo")
+    assert not result["ok"]
+    assert any("S01-C001: source_excerpt not found verbatim in S01" in r for r in result["gate"]["reasons"])
+
+
+def test_excerpt_tolerates_wrapping_case_and_quote_style(ws):
+    pdir = to_extracted()
+    _rewrite_first_claim(pdir, source_excerpt="IDENTIFIES   Argon2id as the preferred algorithm   FOR password hashing")
+    assert run_extract_verify("demo")["ok"]
+
+
+def test_missing_excerpt_fails_unless_policy_relaxed(ws):
+    pdir = to_extracted()
+    _rewrite_first_claim(pdir, source_excerpt=None)
+    result = run_extract_verify("demo")
+    assert not result["ok"]
+    assert any("S01-C001: missing source_excerpt" in r for r in result["gate"]["reasons"])
+    rules = pdir / "merge-rules.yaml"
+    rules.write_text(rules.read_text(encoding="utf-8").replace(
+        "require_source_excerpt: true", "require_source_excerpt: false"), encoding="utf-8")
+    result = run_extract_verify("demo")
+    assert result["ok"]
+    assert any("missing source_excerpt" in w for w in result["gate"]["warnings"])
+
+
+def test_short_excerpt_rejected():
+    errors = validate_claim(dict(VALID, source_excerpt="Argon2id"), "S01")
+    assert any("at least" in e for e in errors)
+
+
+def test_passing_gate_writes_provenance(ws):
+    from resynth import provenance
+
+    pdir = to_extracted()
+    records = provenance.load(pdir)
+    assert len(records) == 11
+    rec = records["S02-C002"]
+    assert rec["section"] == "What we run in production"
+    assert rec["line_start"] == 8 and rec["status"] == "uncited"
+
+
+def test_check_source_claims_is_read_only(ws):
+    from resynth.extract import check_source_claims
+
+    pdir = to_extracted()
+    before = (pdir / "gates" / "02-extract.yaml").read_bytes()
+    assert check_source_claims("demo", "S02")["ok"]
+    _rewrite_first_claim(pdir, source_excerpt="not present anywhere in the source text")
+    result = check_source_claims("demo", "S01")
+    assert not result["ok"]
+    assert any("not found verbatim" in p for p in result["problems"])
+    assert (pdir / "gates" / "02-extract.yaml").read_bytes() == before

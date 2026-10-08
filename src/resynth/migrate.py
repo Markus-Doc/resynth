@@ -6,7 +6,14 @@ from __future__ import annotations
 
 from . import config, intake
 from .errors import ResynthError
-from .fsutil import parse_frontmatter, safe_write
+from .fsutil import iter_jsonl, parse_frontmatter, safe_write
+
+
+def _claims_without_excerpt(pdir) -> int:
+    count = 0
+    for f in sorted((pdir / "claims").glob("S*-claims.jsonl")):
+        count += sum(1 for _n, _raw, obj, err in iter_jsonl(f) if not err and "source_excerpt" not in obj)
+    return count
 
 
 def run_migrate(project: str, dry_run: bool = False) -> dict:
@@ -53,6 +60,16 @@ def run_migrate(project: str, dry_run: bool = False) -> dict:
                 "The sealed git tag still pins the old state.",
                 f"When you are ready, re-seal with: resynth audit {project} "
                 f"then resynth seal {project}",
+            ]
+        )
+    missing = _claims_without_excerpt(pdir)
+    if missing:
+        messages.extend(
+            [
+                f"{missing} claim(s) have no source_excerpt, which RESYNTH 0.3.0 requires to "
+                "prove where each claim came from.",
+                "Add a short verbatim source_excerpt to each claim, or set "
+                "require_source_excerpt: false in merge-rules.yaml to keep the old behaviour.",
             ]
         )
     gate = None

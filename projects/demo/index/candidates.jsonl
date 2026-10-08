@@ -1,1 +1,5 @@
-{"candidate_id": "P001", "claim_ids": ["S01-C001", "S02-C001"], "shared_tags": ["hashing-algorithms"], "token_overlap": 0.368}
+{"candidate_id": "P001", "claim_ids": ["S01-C001", "S02-C001"], "shared_tags": ["hashing-algorithms"], "token_overlap": 0.648, "kind": "overlap"}
+{"candidate_id": "P002", "claim_ids": ["S01-C003", "S02-C003"], "shared_tags": ["storage-policy"], "token_overlap": 0.342, "kind": "overlap"}
+{"candidate_id": "P003", "claim_ids": ["S01-C003", "S03-C001"], "shared_tags": ["storage-policy"], "token_overlap": 0.342, "kind": "overlap"}
+{"candidate_id": "P004", "claim_ids": ["S01-C002", "S02-C002"], "shared_tags": ["hashing-algorithms", "work-factor"], "token_overlap": 0.322, "kind": "overlap"}
+{"candidate_id": "P005", "claim_ids": ["S02-C003", "S03-C001"], "shared_tags": ["storage-policy"], "token_overlap": 0.301, "kind": "overlap"}

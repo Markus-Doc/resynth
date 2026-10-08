@@ -24,19 +24,26 @@
 
 - Winning claims requiring citation: 9
 - Conflict groups logged: 1
+- Claims located verbatim in their source: 11
+- Of those, citing resolvable evidence: 0, citing evidence with no resolvable link: 0, citing nothing at that passage: 11
 
 ## Traceability matrix
 
-| Source | Claim | Decision | Group | Location in MASTER.md | Status |
-| --- | --- | --- | --- | --- | --- |
-| S01 | S01-C001 | CORROBORATED | G001 | Hashing Algorithms | cited |
-| S01 | S01-C002 | CONFLICT | G002 | Conflicts | logged in Conflicts |
-| S01 | S01-C003 | CORROBORATED | G003 | Storage Policy | cited |
-| S01 | S01-C004 | UNIQUE | G004 | Key Protection | cited |
-| S02 | S02-C001 | CORROBORATED | G001 | Hashing Algorithms | cited |
-| S02 | S02-C002 | CONFLICT | G002 | Conflicts | logged in Conflicts |
-| S02 | S02-C003 | CORROBORATED | G003 | Storage Policy | cited |
-| S02 | S02-C004 | UNIQUE | G005 | Migration | cited |
-| S03 | S03-C001 | CORROBORATED | G003 | Storage Policy | cited |
-| S03 | S03-C002 | UNIQUE | G006 | Abuse Prevention | cited |
-| S03 | S03-C003 | UNIQUE | G007 | Monitoring | cited |
+Origin is the claim's verified place in its source. Evidence is what the
+source cites there: cited (a resolvable link or DOI), unresolved (a marker
+with no recoverable link) or uncited. Full detail is in MASTER.md, Appendix:
+Claim Provenance, and in index/provenance.jsonl.
+
+| Source | Claim | Decision | Group | Location in MASTER.md | Status | Origin | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S01 | S01-C001 | CORROBORATED | G001 | Hashing Algorithms | cited | L5-6 | uncited |
+| S01 | S01-C002 | CONFLICT | G002 | Conflicts | logged in Conflicts | L10-11 | uncited |
+| S01 | S01-C003 | CORROBORATED | G003 | Storage Policy | cited | L15 | uncited |
+| S01 | S01-C004 | UNIQUE | G004 | Key Protection | cited | L20 | uncited |
+| S02 | S02-C001 | CORROBORATED | G001 | Hashing Algorithms | cited | L5 | uncited |
+| S02 | S02-C002 | CONFLICT | G002 | Conflicts | logged in Conflicts | L8-9 | uncited |
+| S02 | S02-C003 | CORROBORATED | G003 | Storage Policy | cited | L14 | uncited |
+| S02 | S02-C004 | UNIQUE | G005 | Migration | cited | L19-20 | uncited |
+| S03 | S03-C001 | CORROBORATED | G003 | Storage Policy | cited | L5 | uncited |
+| S03 | S03-C002 | UNIQUE | G006 | Abuse Prevention | cited | L8-9 | uncited |
+| S03 | S03-C003 | UNIQUE | G007 | Monitoring | cited | L13 | uncited |

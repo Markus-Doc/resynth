@@ -24,11 +24,18 @@
 
 - Winning claims requiring citation: {{ winners_total }}
 - Conflict groups logged: {{ conflicts_total }}
+- Claims located verbatim in their source: {{ provenance.claims_located }}
+- Of those, citing resolvable evidence: {{ provenance.cited }}, citing evidence with no resolvable link: {{ provenance.unresolved }}, citing nothing at that passage: {{ provenance.uncited }}
 
 ## Traceability matrix
 
-| Source | Claim | Decision | Group | Location in MASTER.md | Status |
-| --- | --- | --- | --- | --- | --- |
+Origin is the claim's verified place in its source. Evidence is what the
+source cites there: cited (a resolvable link or DOI), unresolved (a marker
+with no recoverable link) or uncited. Full detail is in MASTER.md, Appendix:
+Claim Provenance, and in index/provenance.jsonl.
+
+| Source | Claim | Decision | Group | Location in MASTER.md | Status | Origin | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 {% for row in matrix %}
-| {{ row.source_id }} | {{ row.claim_id }} | {{ row.decision }} | {{ row.group_id }} | {{ row.location }} | {{ row.status }} |
+| {{ row.source_id }} | {{ row.claim_id }} | {{ row.decision }} | {{ row.group_id }} | {{ row.location }} | {{ row.status }} | {{ row.origin }} | {{ row.evidence }} |
 {% endfor %}
