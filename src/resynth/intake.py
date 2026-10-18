@@ -42,7 +42,7 @@ SOURCE_TYPES = {
     "other",
 }
 TRANSCRIPT_STATUSES = {"fetched", "pending"}
-RESOLVED_FROM_RE = re.compile(r"^S\d{2}$")
+RESOLVED_FROM_RE = re.compile(r"^S\d{2,}$")
 V2_FIELDS = ["schema_version", "source_type", "url", "resolved_from"]
 
 

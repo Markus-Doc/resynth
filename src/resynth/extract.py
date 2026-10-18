@@ -16,7 +16,7 @@ from .fsutil import iter_jsonl, load_yaml, safe_write
 from .gates import require_previous, write_gate
 from .intake import load_sources
 
-CLAIM_ID_RE = re.compile(r"^S\d{2}-C\d{3}$")
+CLAIM_ID_RE = re.compile(r"^S\d{2,}-C\d{3,}$")
 CLAIM_TYPES = {"fact", "finding", "recommendation", "definition", "metric", "procedure"}
 CONFIDENCE = {"high", "medium", "low", "unstated"}
 REQUIRED_FIELDS = {
