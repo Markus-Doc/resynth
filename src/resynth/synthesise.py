@@ -21,7 +21,7 @@ from .gates import require_previous, write_gate
 from .intake import load_sources
 from .reconcile import load_decisions, merge_rules
 
-CITE_RE = re.compile(r"S\d{2}-C\d{3}")
+CITE_RE = re.compile(r"S\d{2,}-C\d{3,}")
 APPENDIX_MARK = "## Appendix: Source Register"
 APPENDICES = {"Appendix: Source Register", "Appendix: Claim Provenance"}
 SPECIAL_SECTIONS = {"Conflicts", "Gaps"} | APPENDICES

@@ -23,6 +23,12 @@ def test_valid_claim_passes():
     assert validate_claim(dict(VALID), "S01") == []
 
 
+def test_three_digit_source_and_claim_ids_pass():
+    # Resolve and crawling push projects past 99 sources and long reports past 999 claims.
+    claim = dict(VALID, claim_id="S142-C1001", source_id="S142")
+    assert validate_claim(claim, "S142") == []
+
+
 @pytest.mark.parametrize(
     "field,value,fragment",
     [
