@@ -255,7 +255,10 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
             # A report that yields nothing usually means its extraction never
             # ran or failed. A fetched link may legitimately hold nothing.
             msg = f"{sid}: no claims extracted from this source"
-            (warnings if fm.get("resolved_from") else reasons).append(msg)
+            # Light projects keep only claims that answer the brief, and dig
+            # finds are guesses, so either may rightly yield nothing.
+            found = fm.get("resolved_from") or light or str(fm.get("author_or_tool", "")).startswith("dig via")
+            (warnings if found else reasons).append(msg)
         elif len(fm["_body"].encode("utf-8")) > COVERAGE_MIN_BYTES and count < COVERAGE_MIN_CLAIMS:
             warnings.append(
                 f"{sid}: source over 2KB yielded only {count} claims, check coverage"

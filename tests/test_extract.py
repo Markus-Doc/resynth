@@ -23,6 +23,24 @@ def test_valid_claim_passes():
     assert validate_claim(dict(VALID), "S01") == []
 
 
+def test_light_source_without_claims_only_warns(ws):
+    from resynth.extract import run_extract, run_extract_verify
+    from resynth.intake import run_intake
+    from resynth.project import run_init
+    from resynth import config, demo_operator
+    from helpers import DEMO_SOURCES
+
+    run_init("lt", mode="light")
+    run_intake("lt", [str(p) for p in DEMO_SOURCES])
+    pdir = config.project_dir("lt")
+    run_extract("lt")
+    demo_operator.write_claims(pdir)
+    (pdir / "claims" / "S03-claims.jsonl").write_text("# nothing on the question\n", encoding="utf-8")
+    result = run_extract_verify("lt")
+    assert result["ok"]
+    assert "S03: no claims extracted from this source" in result["gate"]["warnings"]
+
+
 def test_three_digit_source_and_claim_ids_pass():
     # Resolve and crawling push projects past 99 sources and long reports past 999 claims.
     claim = dict(VALID, claim_id="S142-C1001", source_id="S142")
