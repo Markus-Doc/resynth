@@ -52,3 +52,6 @@ Every architectural decision with a one line rationale.
 - Light projects have gates 01, 02 and 04 only. Reconcile and audit refuse to run on them rather than pass vacuously, so a light seal can never be read as a deep one.
 - A light master drops the Claim Provenance appendix to stay about two pages. Every claim still traces through MASTER.json and resynth trace.
 - When the light source cap is hit, unfetched links stay out of the resolution manifest, so nothing records them as failed or done.
+- dig uses only free search APIs that answer without a key (Hacker News via Algolia, Marginalia, OpenAlex, Stack Exchange, GitHub). Keys are optional environment variables, never stored in a project. Reddit (403 to bots) and arXiv (robots.txt disallows its API host) are left out, OpenAlex covers arXiv papers.
+- In light mode dig may replace the platform reports, because a quick answer should not need four deep research runs. In deep mode it only adds to them.
+- dig ranks for obscurity, not authority, and labels every source it adds with the engine that found it, so a reader can weigh an odd find accordingly. Hosts that refuse bots (SSRN) are dropped before they use up a pick, and Stack Exchange is read through its API because its pages refuse bots.

@@ -135,7 +135,7 @@ def test_light_resolve_caps_and_ranks_by_citations(ws, monkeypatch):
         return {"body_markdown": f"# Page\n\nContent fetched from {url}.\n", "title": url,
                 "source_type": "html-article", "url": url, "origin": url,
                 "author_or_tool": "test", "date_authored": "2026-10-19",
-                "transcript_status": "fetched"}
+                "transcript_status": None}
 
     monkeypatch.setitem(resolve._FETCHERS, "url", fake_fetch)
     result = resolve.run_resolve("cap")

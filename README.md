@@ -105,6 +105,22 @@ thorough investigation.
 From the command line: `resynth init <project> --light` or `--deep` (the
 default).
 
+### Dig for less obvious sources
+
+`resynth dig <project>` searches the places a normal search buries: Hacker
+News, small independent web sites (Marginalia), open access papers
+(OpenAlex), Stack Exchange answers and GitHub projects. It keeps the most
+unusual finds as sources. Add `--query "..."` to steer it and `--dry-run` to
+see the ranked list without fetching anything. A light project can dig
+instead of running platform reports.
+
+Optional free keys make it better. Set them as environment variables:
+
+- `BRAVE_API_KEY` adds pages three and four of Brave Search and pushes down
+  anything that ranks on page one.
+- `MARGINALIA_API_KEY` avoids the shared key's rate limit.
+- `OPENALEX_API_KEY` gives you your own daily paper search budget.
+
 Everything below this point is detail for operators and developers.
 
 ## The intended workflow
