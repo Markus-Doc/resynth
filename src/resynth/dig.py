@@ -273,6 +273,9 @@ def collect(queries: list[str]) -> tuple[list[dict], list[str]]:
         for name, search in engines.items():
             try:
                 hits = [h for h in search(query) if h and _relevant(h, query)]
+                short = " ".join(query.split()[:3])
+                if not hits and short != query:
+                    hits = [h for h in search(short) if h and _relevant(h, short)]
             except FetchError as err:
                 notes.append(f"{name}, '{query}': {err}")
                 continue

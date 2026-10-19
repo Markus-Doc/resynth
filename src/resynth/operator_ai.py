@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import os
 import shutil
 import subprocess
+import sys
 import queue
 import threading
 from pathlib import Path
@@ -175,7 +176,11 @@ def build_command(cfg: dict, prompt: str, *, prompt_via_stdin: bool = False,
     if cli == "claude":
         annotated_prompt = f"Reasoning effort: {effort}.\n\n{prompt}"
         cmd = ["claude", "-p"] if prompt_via_stdin else ["claude", "-p", annotated_prompt]
-        cmd += ["--permission-mode", "acceptEdits", "--effort", effort]
+        # acceptEdits alone denies every shell command in print mode, so a
+        # task could never run its own gate check. Allow exactly this
+        # interpreter running resynth and nothing else.
+        cmd += ["--permission-mode", "acceptEdits", "--effort", effort,
+                "--allowedTools", f'Bash("{sys.executable}" -m resynth *)']
         if model:
             cmd += ["--model", model]
         if effort == "high":  # retained for older Claude CLI installations
