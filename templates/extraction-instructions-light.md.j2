@@ -1,0 +1,39 @@
+# Claim Extraction, light mode: {{ project }}
+
+> [!important] Answer the brief, nothing else
+> Research question: {{ topic or "see BRIEF.md" }}
+>
+> Record only claims that help answer this question. Skip background,
+> marketing, method notes and anything off topic. Take at most
+> {{ per_source }} claims from any one source, the ones that matter most.
+
+## Workspace
+
+One file per source under claims/, one JSON object per line. Lines that
+start with # are ignored.
+
+{% for s in sources %}
+- {{ s.source_id }}-claims.jsonl for {{ s.title }}
+{% endfor %}
+
+## Claim fields
+
+- claim_id: {{ 'S01-C001' }} style, the prefix must match the file's source
+- source_id: the source the claim came from
+- claim_text: the claim restated in your own words, one claim only
+- claim_type: one of fact, finding, recommendation, definition, metric, procedure
+- topic_tags: a list of lowercase kebab case tags, at least one
+- supporting_quote_location: a section or heading reference
+- confidence_as_stated: one of high, medium, low, unstated
+- depends_on: a list of claim ids this claim depends on, usually []
+- source_excerpt: 15 to 300 characters copied exactly from the sentence that
+  states the claim, leaving out footnote markers and link syntax
+
+The source_excerpt is the one check light mode keeps. RESYNTH finds it in the
+source, so a claim the source does not contain fails. Pick a phrase that
+occurs once in the source.
+
+## Check
+
+Check one source with resynth check-claims {{ project }} S01, then run
+resynth extract-verify {{ project }} and fix every reported problem.

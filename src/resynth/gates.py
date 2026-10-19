@@ -23,6 +23,10 @@ STAGE_BEFORE = {
     "04-synthesis": "03-reconcile",
     "05-audit": "04-synthesis",
 }
+LIGHT_STAGE_BEFORE = {
+    "02-extract": "01-intake",
+    "04-synthesis": "02-extract",
+}
 
 
 def gate_path(pdir: Path, gate: str) -> Path:
@@ -67,10 +71,18 @@ def require_gate(pdir: Path, gate: str) -> None:
 
 
 def require_previous(pdir: Path, gate: str) -> None:
-    prev = STAGE_BEFORE.get(gate)
+    if config.project_mode(pdir) == "light":
+        if gate not in config.LIGHT_GATE_NAMES:
+            raise ResynthError(
+                f"{gate} is not a stage of a light project. Light projects run "
+                "intake, extract and synthesis, then seal."
+            )
+        prev = LIGHT_STAGE_BEFORE.get(gate)
+    else:
+        prev = STAGE_BEFORE.get(gate)
     if prev:
         require_gate(pdir, prev)
 
 
 def all_gates(pdir: Path) -> dict[str, str]:
-    return {g: read_gate(pdir, g).get("status", PENDING) for g in config.GATE_NAMES}
+    return {g: read_gate(pdir, g).get("status", PENDING) for g in config.gate_names(pdir)}

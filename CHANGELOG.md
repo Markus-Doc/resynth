@@ -4,6 +4,22 @@ All notable changes to RESYNTH are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Light mode for everyday questions. `resynth init <project> --light` (or
+  answering light in guided mode) caps a project at 30 sources, fetching the
+  links most reports cite first, extracts only claims that answer the brief
+  (at most 15 per source), runs one AI task with no fan-out, no review and
+  one corrective pass, and writes a two page master (Answer, Key Findings,
+  Where Sources Disagree, Gaps, under 1,200 words). Light projects keep the
+  verbatim excerpt check, skip reconciliation and audit, and record
+  `mode: light` in merge-rules.yaml, SEAL.yaml and MASTER.json. `--deep`, the
+  default, is the full pipeline unchanged.
+
+### Fixed
+- Source and claim ids past S99 and C999 are accepted.
+
 ## [0.3.0] - 2026-10-08
 
 ### Added

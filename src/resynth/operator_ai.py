@@ -18,7 +18,7 @@ from . import config
 from .fsutil import dump_yaml
 
 EFFORTS = ["low", "medium", "high", "xhigh"]
-STAGES = ("prompts", "extract", "reconcile", "synthesise")
+STAGES = ("prompts", "extract", "reconcile", "synthesise", "light")
 ROLES = ("author", "escalation", "fallback", "review")
 
 KNOWN_CLIS = {
@@ -40,6 +40,9 @@ DEFAULTS: dict[str, Any] = {
                       "escalation": {"cli": "codex", "model": "gpt-5.6-sol", "effort": "xhigh"}},
         "synthesise": {"author": {"cli": "claude", "model": "opus", "effort": "high"},
                        "escalation": {"cli": "codex", "model": "gpt-5.6-sol", "effort": "xhigh"}},
+        # Light mode is one task that extracts and writes the short master.
+        "light": {"author": {"cli": "claude", "model": "sonnet", "effort": "medium"},
+                  "escalation": {"cli": "claude", "model": "opus", "effort": "high"}},
         "fallback": {"fallback": {"cli": "codex", "model": "gpt-5.6-terra", "effort": "high"}},
         "review": {"review": {"cli": "codex", "model": "gpt-5.6-terra", "effort": "high"}},
     },
@@ -114,6 +117,9 @@ def load() -> dict:
         return _migrate_legacy(data, path)
     cfg = _copy_defaults()
     _merge(cfg, data)
+    if "light" not in (data.get("routes") or {}):
+        # Workspaces wired before light mode keep the assistant they chose.
+        cfg["routes"]["light"]["author"]["cli"] = cfg["routes"]["extract"]["author"]["cli"]
     cfg["version"] = 2
     compat = cfg["routes"]["prompts"]["author"]
     cfg.update({k: compat.get(k) for k in ("cli", "model", "effort")})

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from .errors import ResynthError
+from .fsutil import load_yaml
 
 GATE_NAMES = [
     "01-intake",
@@ -19,6 +20,14 @@ GATE_NAMES = [
     "04-synthesis",
     "05-audit",
 ]
+
+# Light projects skip reconciliation and audit. Their synthesis gate follows
+# straight on from extraction.
+LIGHT_GATE_NAMES = ["01-intake", "02-extract", "04-synthesis"]
+MODES = ("deep", "light")
+LIGHT_SOURCE_CAP = 30
+LIGHT_CLAIMS_PER_SOURCE = 15
+LIGHT_WORD_LIMIT = 1200
 
 PROJECT_SUBDIRS = ["sources", "claims", "index", "output", "gates", "_trash"]
 
@@ -39,6 +48,30 @@ require_source_excerpt: true
 # List topic tags in the desired order. Empty means alphabetical.
 section_order: []
 """
+
+MODE_RULE = """# deep runs the full five gate pipeline. light is for everyday questions:
+# at most {cap} sources, claims that answer the brief only, one AI task and
+# a two page master. Set at init, do not change it mid project.
+mode: {mode}
+"""
+
+
+def merge_rules_text(mode: str = "deep") -> str:
+    if mode not in MODES:
+        raise ResynthError(f"unknown mode '{mode}', expected one of {', '.join(MODES)}")
+    return DEFAULT_MERGE_RULES + MODE_RULE.format(cap=LIGHT_SOURCE_CAP, mode=mode)
+
+
+def project_mode(pdir: Path) -> str:
+    """light or deep. Projects made before light mode existed are deep."""
+    path = pdir / "merge-rules.yaml"
+    if not path.is_file():
+        return "deep"
+    return "light" if (load_yaml(path) or {}).get("mode") == "light" else "deep"
+
+
+def gate_names(pdir: Path) -> list[str]:
+    return LIGHT_GATE_NAMES if project_mode(pdir) == "light" else GATE_NAMES
 
 
 def workspace_root() -> Path:

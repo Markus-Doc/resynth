@@ -47,3 +47,8 @@ Every architectural decision with a one line rationale.
 - Delegated tasks run their stage check in-session (check-claims, reconcile --fill-unique, synth-verify) through python -m resynth with the wizard's own interpreter, so they work whether or not resynth is on PATH.
 - reconcile --fill-unique never fills a claim that appears in a candidate pair, so the shortcut saves writing trivial UNIQUE groups without letting a possible duplicate or conflict pass undecided.
 - Candidate detection weights shared words by inverse document frequency and compares only cross-source pairs, with thresholds tuned against a real 155-claim project, because plain Jaccard on restated claims flagged nothing.
+- Light mode exists because a full round on 4 to 5 reports reached about 150 sources, 2,000 claims and over 200 AI tasks. A light project caps sources at 30, extracts only claims that answer the brief and runs one AI task, keeping the verbatim excerpt check as its one evidence gate.
+- The mode is set once at init and stored in merge-rules.yaml. Projects without it are deep, so existing projects and seals are unchanged apart from the seal now naming its mode.
+- Light projects have gates 01, 02 and 04 only. Reconcile and audit refuse to run on them rather than pass vacuously, so a light seal can never be read as a deep one.
+- A light master drops the Claim Provenance appendix to stay about two pages. Every claim still traces through MASTER.json and resynth trace.
+- When the light source cap is hit, unfetched links stay out of the resolution manifest, so nothing records them as failed or done.

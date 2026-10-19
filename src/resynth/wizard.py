@@ -159,6 +159,24 @@ DELEGATED_PROMPTS = {
         "Fix every reason it reports and run it again until the gate reports PASS.\n"
         "Edit only MASTER.md."
     ),
+    "light": (
+        "You are the RESYNTH operator working in this RESYNTH workspace on a light\n"
+        "project: a quick answer, not a systematic review. Do the whole job in this\n"
+        "one session.\n"
+        "1. Read projects/{project}/claims/EXTRACTION-INSTRUCTIONS.md. For each source\n"
+        "it lists, read the source under projects/{project}/sources/ and write only the\n"
+        "claims that answer the research question to its claims file, at most 15 per\n"
+        "source, each with a source_excerpt copied exactly from the source. Skip a\n"
+        "source whose claims file already passes. Check each with: {run} check-claims {project} <SID>\n"
+        "2. Run: {run} extract-verify {project} and fix every FAIL until PASS.\n"
+        "3. Run: {run} synthesise {project}, then edit projects/{project}/output/MASTER.md\n"
+        "and replace every todo callout with plain prose. Answer the question first.\n"
+        "End every paragraph in Answer and Key Findings with provenance markers such\n"
+        "as [S01-C003]. Keep the body under 1200 words. Do not edit anything from\n"
+        "'## Appendix: Source Register' down.\n"
+        "4. Run: {run} synth-verify {project} --json and fix every reason until PASS.\n"
+        "Edit only claims files and MASTER.md."
+    ),
 }
 
 # Commands a delegated operator runs to check its own work in-session, which
@@ -204,23 +222,31 @@ AGENT_PROMPTS = {
         "generated appendices alone. Then run resynth synth-verify <project> and\n"
         "fix every reason until PASS."
     ),
+    "light": (
+        "Read projects/<project>/claims/EXTRACTION-INSTRUCTIONS.md. For each source,\n"
+        "write only the claims that answer the brief, at most 15, each with a verbatim\n"
+        "source_excerpt. Run resynth extract-verify <project> until PASS, then\n"
+        "resynth synthesise <project>, fill the short MASTER.md with cited prose under\n"
+        "1200 words, and run resynth synth-verify <project> until PASS."
+    ),
 }
 
 
 def project_state(pdir: Path) -> str:
     """The next pipeline step for a project. Pure, testable."""
     gates = all_gates(pdir)
+    light = config.project_mode(pdir) == "light"
     if not (pdir / "BRIEF.md").is_file():
         return "brief"
     if not list((pdir / "sources").glob("S*.md")):
         return "intake"
     if gates["02-extract"] != "PASS":
         return "extract"
-    if gates["03-reconcile"] != "PASS":
+    if not light and gates["03-reconcile"] != "PASS":
         return "reconcile"
     if gates["04-synthesis"] != "PASS":
         return "synthesise"
-    if gates["05-audit"] != "PASS":
+    if not light and gates["05-audit"] != "PASS":
         return "audit"
     if not (pdir / "output" / "SEAL.yaml").is_file():
         return "seal"
@@ -355,8 +381,14 @@ def _choose_project(root: Path) -> str | None:
         return None
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in choice).strip("-").lower()
     if safe not in projects:
-        run_init(safe)
-        console.print(f"created project [cyan]{safe}[/cyan]")
+        console.print(
+            "\n[cyan]light[/cyan]: a quick answer for an everyday question, up to "
+            f"{config.LIGHT_SOURCE_CAP} sources and a two page result."
+            "\n[cyan]deep[/cyan]: a thorough investigation with every check, many times the AI cost."
+        )
+        mode = Prompt.ask("Light or deep?", choices=list(config.MODES), default="light")
+        run_init(safe, mode=mode)
+        console.print(f"created {mode} project [cyan]{safe}[/cyan]")
     return safe
 
 
@@ -511,7 +543,8 @@ def _delegate(project: str, root: Path, ai_cfg: dict, key: str, feedback: list[s
     if key == "extract":
         return _delegate_extract(project, root, ai_cfg, feedback, instruction, control)
     prompt, ai_cfg = _build_prompt(key, ai_cfg, feedback, instruction, project=project,
-                                   check=_check_command(key, project=project))
+                                   check=_check_command(key, project=project),
+                                   run=f'"{sys.executable}" -m resynth')
     console.print(
         f"\n[cyan]Handing this step to {ai_cfg['cli']} "
         f"(model {operator_ai.resolved_model(ai_cfg) or 'default'}, "
@@ -869,9 +902,18 @@ def _offer_resolve(project: str) -> None:
     if not targets:
         return
     n = len(targets)
+    pdir = config.project_dir(project)
+    question = (f"I found {n} links and file references inside your reports. "
+                "Fetch them as extra sources now?")
+    if config.project_mode(pdir) == "light":
+        room = max(0, config.LIGHT_SOURCE_CAP - len(load_sources(pdir)))
+        if room == 0:
+            return
+        if n > room:
+            question = (f"I found {n} links inside your reports. This is a light project, "
+                        f"so I will fetch the {room} most cited. Fetch them now?")
     if not Confirm.ask(
-        f"I found {n} links and file references inside your reports. "
-        "Fetch them as extra sources now?",
+        question,
         default=True,
     ):
         return
@@ -901,12 +943,14 @@ def _step_operator(
     open_path: Path,
     verify,
     control: SessionControl,
+    attempts: int = 3,
+    review: bool = True,
 ) -> bool:
     _panel(title, body)
     route = _author_route(ai_cfg, key)
     if route.get("cli") and _ai_choice(f"Let {route['cli']} do this step for you now?", control):
         feedback: list[str] = []
-        for attempt in range(1, 4):
+        for attempt in range(1, attempts + 1):
             outcome = _delegate(project, root, route, key, feedback, control.next_instruction, control)
             if outcome == "stopped":
                 return False
@@ -916,6 +960,9 @@ def _step_operator(
                 break
             control.next_instruction = ""
             result = verify(delegated=True)
+            if result["ok"] and not review:
+                console.print("[green]Gate PASS, moving on.[/green]")
+                return True
             if result["ok"]:
                 prior = None
                 while True:
@@ -942,8 +989,8 @@ def _step_operator(
                     prior = review
             feedback = result.get("gate", {}).get("reasons", [])
             _show_reasons(result)
-            if attempt < 3:
-                console.print(f"[yellow]Retrying with feedback, attempt {attempt + 1} of 3...[/yellow]")
+            if attempt < attempts:
+                console.print(f"[yellow]Retrying with feedback, attempt {attempt + 1} of {attempts}...[/yellow]")
         console.print("[yellow]Falling back to manual mode for this step.[/yellow]")
     console.print(
         "\nIf an AI agent is your operator, paste this to it:\n"
@@ -971,6 +1018,9 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
                 return
         elif state == "intake":
             if not _step_intake(project):
+                return
+        elif state in ("extract", "synthesise") and config.project_mode(pdir) == "light":
+            if not _step_light(project, pdir, root, ai_cfg, control, state):
                 return
         elif state == "extract":
             run_extract(project)
@@ -1046,15 +1096,53 @@ def _run_project(project: str, root: Path, ai_cfg: dict) -> None:
         control_mod.finish_session(project, control.session)
 
 
+def _light_verify(project: str) -> dict:
+    """Extraction gate first, then the short master's gate, so one delegated
+    task can carry a light project from claims to a checked answer."""
+    result = run_extract_verify(project)
+    if not result["ok"]:
+        return result
+    run_synthesise(project)
+    return run_synth_verify(project)
+
+
+def _step_light(project: str, pdir: Path, root: Path, ai_cfg: dict, control: SessionControl,
+                state: str) -> bool:
+    if state == "extract":
+        run_extract(project)
+    else:
+        run_synthesise(project)
+    return _step_operator(
+        project,
+        pdir,
+        root,
+        ai_cfg,
+        "light",
+        "Step 3 of 4: claims and a short answer",
+        "Light mode does this in one go: pull out only the claims that answer\n"
+        "your question, then write a two page master that cites them. Every\n"
+        "claim is checked against a verbatim excerpt of its source.",
+        pdir / "claims" / "EXTRACTION-INSTRUCTIONS.md",
+        lambda delegated=False: _light_verify(project),
+        control,
+        attempts=2,
+        review=False,
+    )
+
+
 def _finish(project: str, pdir: Path) -> None:
     _status_table(project, pdir)
     out = pdir / "output"
+    if config.project_mode(pdir) == "light":
+        proof = f"Trace a claim:      resynth trace {project} <claim id>"
+    else:
+        proof = f"Provenance proof:   {out / 'AUDIT-REPORT.md'}"
     _panel(
         "Step 6 of 6: done",
         "Your master research document is complete and verified.\n\n"
         f"Read it:            {out / 'MASTER.md'}\n"
         f"For AI agents:      {out / 'MASTER.json'}\n"
-        f"Provenance proof:   {out / 'AUDIT-REPORT.md'}",
+        f"{proof}",
     )
     if Confirm.ask("Open the master document now?", default=True):
         _open_file(out / "MASTER.md")

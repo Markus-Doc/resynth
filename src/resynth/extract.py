@@ -15,6 +15,7 @@ from . import provenance
 from .fsutil import iter_jsonl, load_yaml, safe_write
 from .gates import require_previous, write_gate
 from .intake import load_sources
+from .project import brief_topic
 
 CLAIM_ID_RE = re.compile(r"^S\d{2,}-C\d{3,}$")
 CLAIM_TYPES = {"fact", "finding", "recommendation", "definition", "metric", "procedure"}
@@ -84,10 +85,15 @@ def run_extract(project: str, dry_run: bool = False) -> dict:
             continue
         outcome = safe_write(path, _workspace_header(sid), pdir, dry_run=dry_run)
         events.append({"file": path.name, "action": outcome})
-    instructions = _jinja().get_template("extraction-instructions.md.j2").render(
+    light = config.project_mode(pdir) == "light"
+    instructions = _jinja().get_template(
+        "extraction-instructions-light.md.j2" if light else "extraction-instructions.md.j2"
+    ).render(
         project=project,
         sources=[{k: v for k, v in fm.items() if not k.startswith("_")} for fm in sources],
         schema_example=_workspace_header("S01"),
+        topic=brief_topic(pdir),
+        per_source=config.LIGHT_CLAIMS_PER_SOURCE,
     )
     outcome = safe_write(
         pdir / "claims" / "EXTRACTION-INSTRUCTIONS.md", instructions, pdir, dry_run=dry_run
@@ -208,6 +214,7 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
     seen_ids: dict[str, str] = {}
     claims_by_source: dict[str, int] = {}
     all_claims: list[dict] = []
+    light = config.project_mode(pdir) == "light"
     for fm in sources:
         sid = fm["source_id"]
         path = pdir / "claims" / f"{sid}-claims.jsonl"
@@ -239,6 +246,11 @@ def run_extract_verify(project: str, dry_run: bool = False) -> dict:
             count += 1
             all_claims.append(obj)
         claims_by_source[sid] = count
+        if light and count > config.LIGHT_CLAIMS_PER_SOURCE:
+            warnings.append(
+                f"{sid}: {count} claims, light mode asks for at most "
+                f"{config.LIGHT_CLAIMS_PER_SOURCE} that answer the brief"
+            )
         if count == 0:
             # A report that yields nothing usually means its extraction never
             # ran or failed. A fetched link may legitimately hold nothing.
