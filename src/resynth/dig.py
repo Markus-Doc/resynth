@@ -60,7 +60,13 @@ STOPWORDS = {
     "from", "how", "i", "in", "is", "it", "me", "my", "of", "on", "or", "should", "that",
     "the", "their", "there", "this", "to", "what", "when", "where", "which", "who", "why",
     "will", "with", "would", "you", "your",
+    # Question padding that says nothing about the subject.
+    "about", "actually", "between", "big", "covering", "get", "goes", "good", "happen",
+    "happens", "including", "into", "large", "less", "more", "most", "new", "practical",
+    "practice", "really", "run", "running", "small", "still", "them", "these", "they",
+    "things", "those", "using", "use", "work", "works", "wrong",
 }
+QUERIES_FILE = "DIG-QUERIES.txt"
 _HEADER = (
     "# RESYNTH dig manifest. One JSON object per line records a search hit:\n"
     "# where it was found, its obscurity score and whether it became a source.\n"
@@ -75,16 +81,40 @@ def manifest_path(pdir: Path) -> Path:
 
 
 def queries_for(topic: str) -> list[str]:
-    """A focused keyword query from the brief, plus a broader three word one,
-    because several engines require every word to match."""
-    words = [w for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9+.#-]*", topic.lower())
-             if w not in STOPWORDS]
+    """Fallback queries from the brief when no query file exists: names first
+    (capitalised words past the first), then the remaining keywords, as a four
+    word and a two word query, because several engines need every word."""
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9+.#-]*", topic)
+    names = [t.lower() for i, t in enumerate(tokens) if i and t[0].isupper()]
+    words = [t.lower() for t in tokens]
+    ordered = []
+    for w in names + words:
+        if w not in STOPWORDS and len(w) > 2 and w not in ordered:
+            ordered.append(w)
     out = []
-    for n in (6, 3):
-        q = " ".join(words[:n])
+    for n in (4, 2):
+        q = " ".join(ordered[:n])
         if q and q not in out:
             out.append(q)
     return out
+
+
+def saved_queries(pdir: Path) -> list[str]:
+    """Queries in prompts/DIG-QUERIES.txt, one per line, # for comments. The
+    guided mode has the AI write them, anyone can edit them."""
+    path = pdir / "prompts" / QUERIES_FILE
+    if not path.is_file():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+def _relevant(hit: dict, query: str) -> bool:
+    """A hit must share at least one query word in its title or snippet.
+    Engines that match on body text alone return a lot of noise."""
+    text = f"{hit['title']} {hit.get('snippet', '')}".lower()
+    terms = [w for w in re.findall(r"[a-z0-9][a-z0-9+.#-]*", query.lower()) if w not in STOPWORDS]
+    return not terms or any(t in text for t in terms)
 
 
 def _json(url: str, headers: dict[str, str] | None = None) -> dict:
@@ -242,7 +272,7 @@ def collect(queries: list[str]) -> tuple[list[dict], list[str]]:
                 notes.append(f"brave page one, '{query}': {err}")
         for name, search in engines.items():
             try:
-                hits = [h for h in search(query) if h]
+                hits = [h for h in search(query) if h and _relevant(h, query)]
             except FetchError as err:
                 notes.append(f"{name}, '{query}': {err}")
                 continue
@@ -276,7 +306,7 @@ def run_dig(project: str, queries: list[str] | None = None, limit: int | None = 
     them as sources. Light projects stop at their source cap. Re-evaluates
     gate 01-intake like resolve."""
     pdir = config.project_dir(project)
-    queries = list(queries or []) or queries_for(brief_topic(pdir))
+    queries = list(queries or []) or saved_queries(pdir) or queries_for(brief_topic(pdir))
     if not queries:
         raise ResynthError(f"dig needs a research question, run: resynth brief {project} --topic ...")
     sources = intake.load_sources(pdir)
