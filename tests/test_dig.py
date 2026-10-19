@@ -20,13 +20,13 @@ def page(url):
 @pytest.fixture
 def engines(monkeypatch):
     results = {
-        "hn": [{"url": "https://tiny.blog/post", "title": "Tiny", "snippet": ""},
-               {"url": "https://www.forbes.com/big", "title": "Big", "snippet": ""}],
-        "marginalia": [{"url": "https://tiny.blog/post/", "title": "Tiny", "snippet": ""}],
-        "openalex": [{"url": f"https://papers.test/{i}.pdf", "title": f"P{i}", "snippet": ""}
+        "hn": [{"url": "https://tiny.blog/post", "title": "Tiny intraday", "snippet": ""},
+               {"url": "https://www.forbes.com/big", "title": "Big tiny intraday", "snippet": ""}],
+        "marginalia": [{"url": "https://tiny.blog/post/", "title": "Tiny intraday", "snippet": ""}],
+        "openalex": [{"url": f"https://papers.test/{i}.pdf", "title": f"P{i} intraday", "snippet": ""}
                      for i in range(8)],
         "stackexchange": [],
-        "github": [{"url": "https://github.com/a/b", "title": "a/b", "snippet": ""}],
+        "github": [{"url": "https://github.com/a/b", "title": "a/b intraday", "snippet": ""}],
     }
 
     def make(name):
@@ -49,18 +49,31 @@ def setup(mode="deep"):
     return config.project_dir("dg")
 
 
-def test_queries_drop_stopwords():
-    assert dig.queries_for("What intraday mean reversion edges still work for retail traders?") == [
-        "intraday mean reversion edges still work", "intraday mean reversion"]
+def test_queries_drop_padding_and_lead_with_names():
+    assert dig.queries_for(
+        "What goes wrong in practice when retail traders run crypto bots on Binance?") == [
+        "binance retail traders crypto", "binance retail"]
+
+
+def test_saved_queries_win(ws, engines):
+    pdir = setup()
+    (pdir / "prompts" / dig.QUERIES_FILE).write_text("# mine\nbinance api limits\n", encoding="utf-8")
+    result = dig.run_dig("dg", limit=1, dry_run=True)
+    assert result["messages"][0] == "searched for: binance api limits"
+
+
+def test_irrelevant_hits_dropped():
+    assert dig._relevant({"title": "Binance rate limits", "snippet": ""}, "binance api")
+    assert not dig._relevant({"title": "Perl error handling", "snippet": ""}, "binance api")
 
 
 def test_agreement_and_small_sites_rank_first(ws, engines):
-    ranked, notes = dig.collect(["q"])
+    ranked, notes = dig.collect(["tiny"])
     assert ranked[0]["url"] == "https://tiny.blog/post"
     assert ranked[0]["engine"] == "hn+marginalia"
     big = next(r for r in ranked if "forbes" in r["url"])
     assert big["score"] < ranked[0]["score"] - 1
-    assert notes == ["stackexchange, 'q': http 403 Forbidden"]
+    assert notes == ["stackexchange, 'tiny': http 403 Forbidden"]
 
 
 def test_page_one_hits_are_pushed_down(ws, engines, monkeypatch):
@@ -69,10 +82,10 @@ def test_page_one_hits_are_pushed_down(ws, engines, monkeypatch):
 
     def brave(query, offset, key):
         calls.append(offset)
-        return [{"url": "https://tiny.blog/post", "title": "Tiny", "snippet": ""}] if offset == 0 else []
+        return [{"url": "https://tiny.blog/post", "title": "Tiny intraday", "snippet": ""}] if offset == 0 else []
 
     monkeypatch.setattr(dig, "_brave", brave)
-    ranked, _ = dig.collect(["q"])
+    ranked, _ = dig.collect(["tiny"])
     assert sorted(calls) == [0, 2, 3]
     assert ranked[0]["url"] != "https://tiny.blog/post"
 

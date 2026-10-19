@@ -159,6 +159,14 @@ DELEGATED_PROMPTS = {
         "Fix every reason it reports and run it again until the gate reports PASS.\n"
         "Edit only MASTER.md."
     ),
+    "dig": (
+        "You are the RESYNTH operator working in this RESYNTH workspace.\n"
+        "Read projects/{project}/BRIEF.md. Write 4 to 6 web search queries to\n"
+        "projects/{project}/prompts/DIG-QUERIES.txt, one per line. Each is 2 to 5\n"
+        "words using the specific names and terms of the field, never question\n"
+        "words, aimed at practitioner discussions, code, data and papers that\n"
+        "answer the question. Vary the angle between queries. Edit no other files."
+    ),
     "light": (
         "You are the RESYNTH operator working in this RESYNTH workspace on a light\n"
         "project: a quick answer, not a systematic review. Do the whole job in this\n"
@@ -914,6 +922,10 @@ def _offer_dig(project: str, ask: bool = True) -> None:
         default=True,
     ):
         return
+    route = _author_route(operator_ai.load(), "prompts")
+    if route.get("cli") and not dig_mod.saved_queries(pdir):
+        console.print("[cyan]Asking your assistant for sharp search queries first...[/cyan]")
+        _delegate(project, config.workspace_root(), route, "dig", [])
     try:
         with console.status("[cyan]Digging, this takes a minute or two...[/cyan]"):
             result = dig_mod.run_dig(project)
