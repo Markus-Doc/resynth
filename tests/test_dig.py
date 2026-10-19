@@ -20,13 +20,13 @@ def page(url):
 @pytest.fixture
 def engines(monkeypatch):
     results = {
-        "hn": [{"url": "https://tiny.blog/post", "title": "Tiny intraday", "snippet": ""},
-               {"url": "https://www.forbes.com/big", "title": "Big tiny intraday", "snippet": ""}],
-        "marginalia": [{"url": "https://tiny.blog/post/", "title": "Tiny intraday", "snippet": ""}],
-        "openalex": [{"url": f"https://papers.test/{i}.pdf", "title": f"P{i} intraday", "snippet": ""}
+        "hn": [{"url": "https://tiny.blog/post", "title": "Tiny intraday mean", "snippet": ""},
+               {"url": "https://www.forbes.com/big", "title": "Big tiny intraday mean", "snippet": ""}],
+        "marginalia": [{"url": "https://tiny.blog/post/", "title": "Tiny intraday mean", "snippet": ""}],
+        "openalex": [{"url": f"https://papers.test/{i}.pdf", "title": f"P{i} intraday mean", "snippet": ""}
                      for i in range(8)],
         "stackexchange": [],
-        "github": [{"url": "https://github.com/a/b", "title": "a/b intraday", "snippet": ""}],
+        "github": [{"url": "https://github.com/a/b", "title": "a/b intraday mean", "snippet": ""}],
     }
 
     def make(name):
@@ -63,8 +63,9 @@ def test_saved_queries_win(ws, engines):
 
 
 def test_irrelevant_hits_dropped():
-    assert dig._relevant({"title": "Binance rate limits", "snippet": ""}, "binance api")
+    assert dig._relevant({"title": "Binance API rate limits", "snippet": ""}, "binance api")
     assert not dig._relevant({"title": "Perl error handling", "snippet": ""}, "binance api")
+    assert not dig._relevant({"title": "Trend in tactile sensing", "snippet": ""}, "binance trend following")
 
 
 def test_agreement_and_small_sites_rank_first(ws, engines):
@@ -82,7 +83,7 @@ def test_page_one_hits_are_pushed_down(ws, engines, monkeypatch):
 
     def brave(query, offset, key):
         calls.append(offset)
-        return [{"url": "https://tiny.blog/post", "title": "Tiny intraday", "snippet": ""}] if offset == 0 else []
+        return [{"url": "https://tiny.blog/post", "title": "Tiny intraday mean", "snippet": ""}] if offset == 0 else []
 
     monkeypatch.setattr(dig, "_brave", brave)
     ranked, _ = dig.collect(["tiny"])

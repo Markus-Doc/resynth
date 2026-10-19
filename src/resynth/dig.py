@@ -110,11 +110,12 @@ def saved_queries(pdir: Path) -> list[str]:
 
 
 def _relevant(hit: dict, query: str) -> bool:
-    """A hit must share at least one query word in its title or snippet.
-    Engines that match on body text alone return a lot of noise."""
+    """A hit must share two query words (one for a one word query) in its
+    title or snippet. Engines that match on body text alone return a lot of
+    noise, and a single shared word let papers on tactile sensing through."""
     text = f"{hit['title']} {hit.get('snippet', '')}".lower()
     terms = [w for w in re.findall(r"[a-z0-9][a-z0-9+.#-]*", query.lower()) if w not in STOPWORDS]
-    return not terms or any(t in text for t in terms)
+    return sum(t in text for t in terms) >= min(2, len(terms))
 
 
 def _json(url: str, headers: dict[str, str] | None = None) -> dict:
