@@ -16,6 +16,16 @@ All notable changes to RESYNTH are documented here. The format follows
   verbatim excerpt check, skip reconciliation and audit, and record
   `mode: light` in merge-rules.yaml, SEAL.yaml and MASTER.json. `--deep`, the
   default, is the full pipeline unchanged.
+- `resynth dig <project>` finds sources a normal search buries. It searches
+  Hacker News, the Marginalia small web index, open access papers on
+  OpenAlex, Stack Exchange and GitHub, scores every hit for how unusual it
+  is (small sites, PDFs and agreement between engines score higher, no
+  engine fills more than 40 percent of the picks) and registers the best as
+  sources. With `BRAVE_API_KEY` set it also reads pages three and four of
+  Brave Search and pushes down anything on page one. Every hit is recorded
+  in `index/dig.jsonl`. In guided mode a light project with no reports can
+  dig instead of running platform reports, and any project can add a dig
+  after intake.
 
 ### Fixed
 - Source and claim ids past S99 and C999 are accepted.

@@ -26,7 +26,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from . import config, control as control_mod, operator_ai, updater
+from . import config, control as control_mod, dig as dig_mod, operator_ai, updater
 from .audit import run_audit, run_seal
 from .errors import ResynthError
 from .export import run_export
@@ -825,6 +825,16 @@ def _step_brief(project: str, pdir: Path, root: Path, ai_cfg: dict, control: Ses
     ):
         console.print("Good, we will load them next.")
         return True
+    if config.project_mode(pdir) == "light" and Confirm.ask(
+        "This is a light project, so I can skip the platform reports and dig for\n"
+        "sources myself: Hacker News, small web sites, open access papers, Stack\n"
+        "Exchange and GitHub, the places a normal search buries. Dig now?",
+        default=True,
+    ):
+        _offer_dig(project, ask=False)
+        if load_sources(pdir):
+            return True
+        console.print("Dig found nothing usable, so we will use platform reports instead.")
     prompts_file = pdir / "prompts" / "RESEARCH-PROMPTS.md"
     delegated = False
     route = _author_route(ai_cfg, "prompts")
@@ -889,7 +899,29 @@ def _step_intake(project: str) -> bool:
     _show_reasons(result)
     if result.get("ok"):
         _offer_resolve(project)
+        _offer_dig(project)
     return True
+
+
+def _offer_dig(project: str, ask: bool = True) -> None:
+    """Search the niche engines and add the most unusual finds as sources."""
+    pdir = config.project_dir(project)
+    if config.project_mode(pdir) == "light" and len(load_sources(pdir)) >= config.LIGHT_SOURCE_CAP:
+        return
+    if ask and not Confirm.ask(
+        "Also dig for less obvious sources (Hacker News, small web, open papers,\n"
+        "Stack Exchange, GitHub) and add the most unusual finds?",
+        default=True,
+    ):
+        return
+    try:
+        with console.status("[cyan]Digging, this takes a minute or two...[/cyan]"):
+            result = dig_mod.run_dig(project)
+    except ResynthError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return
+    for line in result["messages"]:
+        console.print(f"  {line}")
 
 
 def _offer_resolve(project: str) -> None:

@@ -38,8 +38,8 @@ class FetchError(Exception):
     """A target could not be fetched. str(err) is the short reason."""
 
 
-def _request(url: str) -> urllib.request.Request:
-    return urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+def _request(url: str, headers: dict[str, str] | None = None) -> urllib.request.Request:
+    return urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
 
 
 def _robot_parser(base: str) -> RobotFileParser | None:
@@ -73,12 +73,13 @@ def _throttle(host: str) -> None:
     _last_hit[host] = monotonic()
 
 
-def http_get(url: str) -> tuple[bytes, str, str]:
-    """GET a url, returning (body, content-type header, final url)."""
+def http_get(url: str, headers: dict[str, str] | None = None) -> tuple[bytes, str, str]:
+    """GET a url, returning (body, content-type header, final url). headers
+    are extra request headers, such as a search API key."""
     _check_robots(url)
     _throttle(urlsplit(url).netloc.lower())
     try:
-        with urlopen(_request(url), timeout=TIMEOUT) as resp:
+        with urlopen(_request(url, headers), timeout=TIMEOUT) as resp:
             body = resp.read(MAX_BYTES + 1)
             content_type = resp.headers.get("Content-Type") or ""
             final_url = getattr(resp, "url", None) or resp.geturl()

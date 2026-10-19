@@ -184,6 +184,19 @@ def resolve(project, source_ids, only, as_json, dry_run):
 
 @main.command()
 @click.argument("project")
+@click.option("--query", "queries", multiple=True, help="Search query, repeatable. Default: keywords from the brief.")
+@click.option("--limit", type=int, default=None, help="Most sources to add (default 20, light projects stop at their cap).")
+@common
+def dig(project, queries, limit, as_json, dry_run):
+    """Find niche sources (Hacker News, small web, open papers, Stack Exchange, GitHub)."""
+    from . import dig as dig_mod
+
+    _run("dig", project, as_json, dry_run, dig_mod.run_dig, project,
+         queries=list(queries) or None, limit=limit, dry_run=dry_run)
+
+
+@main.command()
+@click.argument("project")
 @common
 def migrate(project, as_json, dry_run):
     """Upgrade a project's sources to the current schema (v2). Re-seal is a separate step."""
