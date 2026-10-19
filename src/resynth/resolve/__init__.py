@@ -84,18 +84,21 @@ def _record(
 
 
 def _scan_targets(scan: list[dict]) -> list[dict]:
+    """Targets in discovery order. cites counts the scanned sources that link
+    to each one, which ranks targets when a light project caps its sources."""
     out: list[dict] = []
-    seen: set[str] = set()
+    seen: dict[str, dict] = {}
     for fm in scan:
         origin = fm.get("origin")
         origin = origin if isinstance(origin, str) else ""
         for t in discover_targets(fm.get("_body", ""), origin):
             if t["raw"] in seen:
+                seen[t["raw"]]["cites"] += 1
                 continue
-            seen.add(t["raw"])
-            out.append(
-                {"raw": t["raw"], "kind": classify_target(t["raw"]), "parent": fm.get("source_id")}
-            )
+            rec = {"raw": t["raw"], "kind": classify_target(t["raw"]),
+                   "parent": fm.get("source_id"), "cites": 1}
+            seen[t["raw"]] = rec
+            out.append(rec)
     return out
 
 
@@ -155,6 +158,14 @@ def run_resolve(
     prior_manifest = _load_manifest(pdir)
     manifest = dict(prior_manifest)
     counts = {"fetched": 0, "cached": 0, "duplicate": 0, "transcript_pending": 0, "failed": 0}
+    # A light project fetches the links most sources cite first and stops at
+    # the source cap. Skipped targets stay out of the manifest, so they are
+    # fetched normally if the cap is ever lifted.
+    light = config.project_mode(pdir) == "light"
+    room = config.LIGHT_SOURCE_CAP - len(sources)
+    if light:
+        targets = sorted(targets, key=lambda t: -t["cites"])
+        counts["skipped"] = 0
     messages: list[str] = []
     events: list[dict] = []
 
@@ -168,7 +179,12 @@ def run_resolve(
             messages.append(f"{raw}: cached ({prior.get('source_id')})")
             events.append({"target": raw, "action": "cached", "source_id": prior.get("source_id")})
             continue
+        if light and room <= 0 and not (prior and prior.get("source_id")):
+            counts["skipped"] += 1
+            events.append({"target": raw, "action": "skipped-cap"})
+            continue
         if dry_run:
+            room -= 1
             counts["fetched"] += 1
             messages.append(f"{raw}: would fetch ({kind})")
             events.append({"target": raw, "action": "would-fetch", "kind": kind})
@@ -237,6 +253,8 @@ def run_resolve(
             transcript_status=doc["transcript_status"],
         )
         sid = result["source_id"]
+        if result["action"] != "duplicate":
+            room -= 1
         if result["action"] == "duplicate":
             status = "duplicate"
             messages.append(f"{raw}: duplicate of {sid}")
@@ -267,6 +285,11 @@ def run_resolve(
                 emitted.add(raw)
         if ordered:
             _write_manifest(pdir, ordered)
+    if light and counts["skipped"]:
+        messages.append(
+            f"light project: source cap of {config.LIGHT_SOURCE_CAP} reached, "
+            f"{counts['skipped']} less cited links left unfetched"
+        )
     gate = intake.check_intake_gate(pdir, dry_run=dry_run)
     messages.append(f"gate 01-intake: {gate['status']}")
     return {

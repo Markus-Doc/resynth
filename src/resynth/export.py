@@ -57,6 +57,7 @@ def run_export(project: str, dry_run: bool = False) -> dict:
     payload = {
         "project": project,
         "format": FORMAT_V2,
+        "mode": config.project_mode(pdir),
         "sections": sections,
         "sources": _export_sources(pdir),
         "claims": _claims_with_provenance(pdir, plan["claims"]),

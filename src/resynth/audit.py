@@ -140,7 +140,8 @@ def _git(args: list[str], cwd: Path) -> str:
 
 def run_seal(project: str, dry_run: bool = False) -> dict:
     pdir = config.project_dir(project)
-    require_gate(pdir, "05-audit")
+    light = config.project_mode(pdir) == "light"
+    require_gate(pdir, config.gate_names(pdir)[-1])
     root = config.workspace_root()
     try:
         _git(["rev-parse", "--show-toplevel"], root)
@@ -152,10 +153,14 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
     tag = f"resynth-{project}-v{version}"
 
     hashes: dict[str, str] = {}
-    targets = [pdir / "output" / "MASTER.md", pdir / "output" / "AUDIT-REPORT.md"]
+    targets = [pdir / "output" / "MASTER.md"]
+    if not light:
+        targets.append(pdir / "output" / "AUDIT-REPORT.md")
     targets += sorted((pdir / "sources").glob("S*.md"))
     targets += sorted((pdir / "claims").glob("S*-claims.jsonl"))
-    targets += [pdir / "index" / "reconciliation.jsonl", pdir / "merge-rules.yaml"]
+    if not light:
+        targets.append(pdir / "index" / "reconciliation.jsonl")
+    targets.append(pdir / "merge-rules.yaml")
     prov_file = pdir / "index" / provenance.PROVENANCE_FILE
     if prov_file.is_file():
         targets.append(prov_file)
@@ -165,7 +170,8 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
         rel = t.relative_to(pdir).as_posix()
         hashes[rel] = sha256_text(t.read_text(encoding="utf-8"))
 
-    seal = {"project": project, "version": version, "tag": tag, "sha256": hashes}
+    seal = {"project": project, "mode": config.project_mode(pdir), "version": version,
+            "tag": tag, "sha256": hashes}
     seal_path = pdir / "output" / "SEAL.yaml"
     outcome = safe_write(seal_path, dump_yaml(seal), pdir, dry_run=dry_run)
     if dry_run:

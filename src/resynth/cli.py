@@ -134,10 +134,14 @@ def guide():
 
 @main.command()
 @click.argument("project")
+@click.option("--light", "mode", flag_value="light",
+              help="Everyday question: at most 30 sources, one AI task, a two page master.")
+@click.option("--deep", "mode", flag_value="deep", default=True,
+              help="Thorough investigation with all five gates (the default).")
 @common
-def init(project, as_json, dry_run):
+def init(project, mode, as_json, dry_run):
     """Create the project skeleton plus default merge-rules.yaml."""
-    _run("init", project, as_json, dry_run, project_mod.run_init, project, dry_run=dry_run)
+    _run("init", project, as_json, dry_run, project_mod.run_init, project, dry_run=dry_run, mode=mode)
 
 
 @main.command()
@@ -291,7 +295,7 @@ def status(project, as_json, dry_run):
         pdir = config.project_dir(project)
         gates = all_gates(pdir)
         if not as_json:
-            table = Table(title=f"RESYNTH gates: {project}")
+            table = Table(title=f"RESYNTH gates: {project} ({config.project_mode(pdir)})")
             table.add_column("Gate")
             table.add_column("Status")
             for gate, state in gates.items():
@@ -320,7 +324,7 @@ def control(project, directive, as_json, dry_run):
 
 
 @main.command()
-@click.option("--stage", type=click.Choice(["prompts", "extract", "reconcile", "synthesise", "fallback", "review"]), default=None, help="Route stage to change.")
+@click.option("--stage", type=click.Choice(["prompts", "extract", "reconcile", "synthesise", "light", "fallback", "review"]), default=None, help="Route stage to change.")
 @click.option("--role", type=click.Choice(["author", "escalation", "fallback", "review"]), default="author", help="Route role to change.")
 @click.option("--use", "use_cli", default=None, help="AI CLI for the selected route.")
 @click.option("--model", default=None, help="Model override, for example claude-opus-4-8.")

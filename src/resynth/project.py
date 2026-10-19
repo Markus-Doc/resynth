@@ -31,8 +31,9 @@ def _jinja() -> Environment:
     )
 
 
-def run_init(project: str, dry_run: bool = False) -> dict:
+def run_init(project: str, dry_run: bool = False, mode: str = "deep") -> dict:
     pdir = config.project_dir(project, must_exist=False)
+    rules = config.merge_rules_text(mode)
     if pdir.exists():
         raise ResynthError(f"project '{project}' already exists at {pdir}")
     events = []
@@ -40,13 +41,13 @@ def run_init(project: str, dry_run: bool = False) -> dict:
         for sub in config.PROJECT_SUBDIRS:
             (pdir / sub).mkdir(parents=True, exist_ok=True)
         (pdir / "prompts").mkdir(exist_ok=True)
-    outcome = safe_write(pdir / "merge-rules.yaml", config.DEFAULT_MERGE_RULES, pdir, dry_run=dry_run)
+    outcome = safe_write(pdir / "merge-rules.yaml", rules, pdir, dry_run=dry_run)
     events.append({"file": "merge-rules.yaml", "action": outcome})
     return {
         "ok": True,
         "events": events,
         "messages": [
-            f"project '{project}' initialised at {pdir}",
+            f"{mode} project '{project}' initialised at {pdir}",
             "next: resynth brief to capture the research question, or resynth intake",
         ],
     }
@@ -75,3 +76,15 @@ def run_brief(project: str, topic: str, dry_run: bool = False) -> dict:
         "messages": [f"{e['file']}: {e['action']}" for e in events]
         + ["operator fills one prompt per platform, user runs them, reports come back via intake"],
     }
+
+
+def brief_topic(pdir) -> str:
+    """The research question from BRIEF.md, or '' when there is no brief."""
+    path = pdir / "BRIEF.md"
+    if not path.is_file():
+        return ""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("> [!abstract] Research question") and i + 1 < len(lines):
+            return lines[i + 1].lstrip("> ").strip()
+    return ""

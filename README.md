@@ -90,6 +90,21 @@ The task is stopped safely, its output is retained, and the instruction is
 recorded in the project's control log. Controls are session-only and cannot
 bypass evidence rules, passing gates, or the seal confirmation.
 
+### Light or deep
+
+When you start a project RESYNTH asks whether you want a quick answer or a
+thorough investigation.
+
+- Light, for everyday questions: at most 30 sources, only the claims that
+  answer your question, one AI task and a two page master. Every claim is
+  still checked against a verbatim excerpt of its source.
+- Deep, for thorough investigations: the full pipeline with reconciliation,
+  audit and a complete provenance appendix. It costs many times more AI
+  tokens than light.
+
+From the command line: `resynth init <project> --light` or `--deep` (the
+default).
+
 Everything below this point is detail for operators and developers.
 
 ## The intended workflow

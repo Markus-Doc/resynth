@@ -19,12 +19,15 @@ from .extract import load_all_claims
 from .fsutil import safe_write
 from .gates import require_previous, write_gate
 from .intake import load_sources
+from .project import brief_topic
 from .reconcile import load_decisions, merge_rules
 
 CITE_RE = re.compile(r"S\d{2,}-C\d{3,}")
 APPENDIX_MARK = "## Appendix: Source Register"
 APPENDICES = {"Appendix: Source Register", "Appendix: Claim Provenance"}
 SPECIAL_SECTIONS = {"Conflicts", "Gaps"} | APPENDICES
+LIGHT_SECTIONS = ("Answer", "Key Findings", "Where Sources Disagree", "Gaps")
+LIGHT_CITED = {"Answer", "Key Findings"}
 
 
 def _jinja() -> Environment:
@@ -143,10 +146,14 @@ def _provenance_rows(pdir: Path, plan: dict) -> list[dict]:
 
 
 def render_appendices(pdir: Path, plan: dict | None = None) -> str:
-    plan = plan or _plan(pdir)
+    # A light master stays short, its claim trace lives in MASTER.json and
+    # resynth trace rather than a table as long as the claims file.
+    light = config.project_mode(pdir) == "light"
+    rows = [] if light else _provenance_rows(pdir, plan or _plan(pdir))
     return _jinja().get_template("master-appendix.md.j2").render(
         sources=_source_rows(load_sources(pdir)),
-        provenance_rows=_provenance_rows(pdir, plan),
+        provenance_rows=rows,
+        include_provenance=not light,
     )
 
 
@@ -158,21 +165,30 @@ def with_appendices(text: str, appendices: str) -> str:
     return body.rstrip("\n") + "\n\n" + appendices
 
 
-def run_synthesise(project: str, dry_run: bool = False, force: bool = False) -> dict:
-    pdir = config.project_dir(project)
-    require_previous(pdir, "04-synthesis")
-    plan = _plan(pdir)
-    sources = load_sources(pdir)
-    master_path = pdir / "output" / "MASTER.md"
-    appendices = render_appendices(pdir, plan)
-    scaffold = _jinja().get_template("master.md.j2").render(
+def _scaffold(pdir: Path, project: str, plan: dict) -> str:
+    sources = _source_rows(load_sources(pdir))
+    if config.project_mode(pdir) == "light":
+        return _jinja().get_template("master-light.md.j2").render(
+            project=project, sources=sources, topic=brief_topic(pdir),
+            word_limit=config.LIGHT_WORD_LIMIT,
+        )
+    return _jinja().get_template("master.md.j2").render(
         project=project,
-        sources=_source_rows(sources),
+        sources=sources,
         rules=plan["rules"].get("rules", []),
         sections=plan["sections"],
         conflicts=plan["conflicts"],
         claims=_claim_briefs(plan),
     )
+
+
+def run_synthesise(project: str, dry_run: bool = False, force: bool = False) -> dict:
+    pdir = config.project_dir(project)
+    require_previous(pdir, "04-synthesis")
+    plan = _plan(pdir)
+    master_path = pdir / "output" / "MASTER.md"
+    appendices = render_appendices(pdir, plan)
+    scaffold = _scaffold(pdir, project, plan)
     scaffold = with_appendices(scaffold, appendices)
     if master_path.exists() and not force:
         existing = master_path.read_text(encoding="utf-8")
@@ -223,10 +239,57 @@ def _is_prose(block: str) -> bool:
     return not first.startswith((">", "<!--", "|", "#"))
 
 
+def _verify_light(pdir: Path, plan: dict, dry_run: bool) -> dict:
+    """Light gate: the master is short, cites only real claims and answers
+    the brief. Coverage of every claim is not required."""
+    master_path = pdir / "output" / "MASTER.md"
+    reasons: list[str] = []
+    text = with_appendices(master_path.read_text(encoding="utf-8"), render_appendices(pdir, plan))
+    safe_write(master_path, text, pdir, dry_run=dry_run)
+    if "[!todo]" in text:
+        reasons.append("operator todo callouts remain in MASTER.md")
+    sections = _split_sections(text)
+    headings = [h for h, _ in sections if h]
+    for required in (*LIGHT_SECTIONS, "Appendix: Source Register"):
+        if required not in headings:
+            reasons.append(f"mandatory section '{required}' missing")
+    cited: set[str] = set()
+    words = 0
+    for heading, content in sections:
+        if heading in APPENDICES or not heading:
+            continue
+        cited.update(CITE_RE.findall(content))
+        prose = [b for b in _blocks(content) if _is_prose(b)]
+        words += sum(len(b.split()) for b in prose)
+        if heading in LIGHT_CITED:
+            if not prose:
+                reasons.append(f"section '{heading}' has no prose")
+            for block in prose:
+                if not CITE_RE.search(block):
+                    reasons.append(f"section '{heading}' has prose without provenance markers")
+        elif heading in LIGHT_SECTIONS and not prose:
+            reasons.append(f"{heading} section is empty")
+    for cid in sorted(cited - set(plan["claims"])):
+        reasons.append(f"cited claim {cid} does not exist")
+    if words > config.LIGHT_WORD_LIMIT:
+        reasons.append(
+            f"body is {words} words, a light master stays under {config.LIGHT_WORD_LIMIT}"
+        )
+    checks = {"claims_cited": len(cited & set(plan["claims"])), "body_words": words}
+    gate = write_gate(pdir, "04-synthesis", reasons, checks, dry_run=dry_run)
+    return {
+        "ok": gate["status"] == "PASS",
+        "gate": gate,
+        "messages": [f"gate 04-synthesis: {gate['status']}"] + [f"FAIL: {r}" for r in reasons[:30]],
+    }
+
+
 def run_synth_verify(project: str, dry_run: bool = False) -> dict:
     pdir = config.project_dir(project)
     require_previous(pdir, "04-synthesis")
     plan = _plan(pdir)
+    if config.project_mode(pdir) == "light" and (pdir / "output" / "MASTER.md").is_file():
+        return _verify_light(pdir, plan, dry_run)
     master_path = pdir / "output" / "MASTER.md"
     reasons: list[str] = []
     if not master_path.is_file():
