@@ -101,6 +101,13 @@ resynth status <project>
 Use the --json flag on every command when an agent is the operator, the
 output parses cleanly and the exit code is 0 only on success.
 
+## Running the research platforms
+
+Between writing the prompts and intake, follow docs/PLATFORM-RUNS.md. In
+short: one tab per platform, deep research mode first, then the model and
+effort only if still selectable, using its account defaults table. Then stop
+for the owner's review of every tab before anything is sent.
+
 ## Copy paste agent prompts
 
 ### Stage 0, research prompt authoring

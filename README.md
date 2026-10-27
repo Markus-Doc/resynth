@@ -132,6 +132,13 @@ agent then drives the pipeline below, and the result is one BEST master
 document, readable by humans, verifiable by machine, and exportable as JSON
 for a downstream AI agent to action.
 
+When the agent runs the platforms in your browser, it follows
+docs/PLATFORM-RUNS.md: open one tab per research platform, switch each to its
+deep research mode first, then set the model and effort if they are still
+selectable (the platform's recommended deep reasoning model at the highest
+effort that is not a heavy spend), and stop for your review before sending
+anything. Any agent asked to run RESYNTH starts at AGENTS.md.
+
 After intake there is one optional extra step. RESYNTH offers to fetch the
 links and file references found inside your reports and register them as
 extra sources, so the things your reports cite become evidence too.
@@ -348,7 +355,8 @@ Run: resynth synth-verify <project> --json and fix every reason until PASS.
 ```
 pyproject.toml
 DECISIONS.md         every architectural decision with a one line rationale
-docs/                operator protocol
+AGENTS.md            start here for any agent asked to run RESYNTH
+docs/                operator protocol, platform runs
 src/resynth/         package code
 templates/           jinja2 templates for scaffolds, instructions, reports
 tests/               pytest suite including the end to end pipeline test
