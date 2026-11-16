@@ -180,11 +180,13 @@ def run_seal(project: str, dry_run: bool = False) -> dict:
     rel_seal = Path(os.path.relpath(seal_path.resolve(), top)).as_posix()
     # -f: workspaces cloned from this repo gitignore projects/*; the seal
     # file must be tracked regardless so the tag has something to pin.
-    _git(["add", "-f", rel_seal], root)
-    status = _git(["status", "--porcelain", "--", rel_seal], root)
+    # rel_seal is relative to the repository top, so git runs there. A
+    # workspace can sit in a subfolder of a larger repository.
+    _git(["add", "-f", rel_seal], top)
+    status = _git(["status", "--porcelain", "--", rel_seal], top)
     if status:
-        _git(["commit", "-m", f"Seal {project} v{version}"], root)
-    _git(["tag", tag], root)
+        _git(["commit", "-m", f"Seal {project} v{version}", "--", rel_seal], top)
+    _git(["tag", tag], top)
     return {
         "ok": True,
         "tag": tag,
